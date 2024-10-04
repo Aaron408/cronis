@@ -1,11 +1,14 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { MdMailOutline } from "react-icons/md";
 import { Link } from "react-router-dom";
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
+import { AuthContext } from "../Components/AuthContext";
 
 export default function Login() {
+  const { googleLogin } = useContext(AuthContext);
+
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,14 +20,20 @@ export default function Login() {
     console.log("Login attempt", { email, password, rememberMe });
   };
 
-  const handleGoogleSuccess = (credentialResponse) => {
-    const credentialResponseDecoded = jwtDecode(credentialResponse.credential);
-    console.log(credentialResponseDecoded);
-    // Aquí puedes manejar la respuesta de Google, por ejemplo, enviando los datos a tu backend
+  const handleGoogleSuccess = async (response) => {
+    const { tokenId } = response; // Obtiene el token de la respuesta de Google
+
+    try {
+      // Llama a la función login del AuthContext para enviar el token al backend
+      await googleLogin(tokenId);
+    } catch (error) {
+      console.error("Error during Google login:", error);
+      // Manejar errores (ej: mostrar notificación)
+    }
   };
 
   const handleGoogleError = () => {
-    console.log('Login Failed');
+    console.log("Login Failed");
   };
 
   return (
@@ -38,7 +47,7 @@ export default function Login() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
-          <div>
+            <div>
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700"
