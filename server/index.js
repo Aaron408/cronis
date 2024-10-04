@@ -1,25 +1,16 @@
 const express = require("express");
+const authService = require("./services/auth");
+const userService = require("./services/users");
 const app = express();
-const mysql = require("mysql2");
-const port = process.env.PORT || 3001;
 
 app.use(express.json());
+require("dotenv").config();
 
-require("dotenv").config({ path: "./.env" });
+// Registrar servicios/rutas en sus respectivas rutas base
+app.use("/api/auth", authService);
+app.use("/api/users", userService);
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  charset: "utf8mb4",
-});
-
-// Conectar a la base de datos
-db.connect((err) => {
-  if (err) {
-    console.error("Error al conectar a la base de datos:", err);
-  } else {
-    console.log("Conexión exitosa a la base de datos!");
-  }
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
