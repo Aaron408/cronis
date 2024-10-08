@@ -189,7 +189,7 @@ export default function VerificationCode() {
               <button
                 onClick={handleResendCode}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                disabled={isLoading || isResending || timeLeft > 0}
+                disabled={isLoading || isResending}
               >
                 {isResending ? 'Reenviando...' : 'Reenviar código'}
               </button>

@@ -286,7 +286,7 @@ app.post("/api/sendVerificationCode", (req, res) => {
         secure: true, // Utilizar SSL
         auth: {
           user: process.env.NODE_EMAIL,
-          pass: "ProyectoIngenieria#2024",
+          pass: process.env.NODE_PASSWORD,
         },
       });
 
@@ -294,7 +294,7 @@ app.post("/api/sendVerificationCode", (req, res) => {
       const enviarCorreo = (email, verificationCode, res) => {
         // Opciones del correo
         const mailOptions = {
-          from: `"Nombre de tu empresa" <${process.env.NODE_EMAIL}>`, // Remitente con el nombre de tu empresa
+          from: `"CRONIS" <${process.env.NODE_EMAIL}>`, // Remitente con el nombre de tu empresa
           to: email, // Correo del destinatario
           subject: "Código de verificación", // Asunto
           text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`, // Cuerpo del correo en texto plano
