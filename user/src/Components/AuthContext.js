@@ -2,55 +2,85 @@ import React, { createContext, useState, useContext } from "react";
 import { Navigate, Outlet, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { jwtDecode } from "jwt-decode"; // Asegúrate de usar la importación con nombre
+import { jwtDecode } from "jwt-decode";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
 
-  const login = async (email, password) => {
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("cronisUsuario");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const login = async (email, password, rememberMe) => {
     try {
-      const response = await axios.post("/api/login", { email, password });
-      setUser(response.data.user);
-      toast.success("Login successful!");
-      navigate("/home");
+      const response = await axios.post("http://localhost:5000/api/login", {
+        email,
+        password,
+        rememberMe,
+      });
+      const { name, type, email: userEmail, token } = response.data;
+      const userData = { name, type, email: userEmail, token };
+      setUser(userData);
+      localStorage.setItem("cronisUsuario", JSON.stringify(userData));
+      toast.success("¡Inicio de sesión exitoso!");
+      if (type === "1") {
+        navigate("/home");
+      } else if (type === "0") {
+        navigate("/dashboard");
+      }
     } catch (error) {
-      toast.error("Login failed. Please try again.");
+      console.error("Error during login:", error);
+      if (error.response && error.response.status === 401) {
+        toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
+      } else {
+        toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
+      }
+      throw error;
     }
   };
 
   const logout = async () => {
-    try {
-      await axios.post("/api/logout");
-      setUser(null);
-      navigate("/");
-    } catch (error) {
-      toast.error("Logout failed. Please try again.");
-    }
+    setUser(null);
+    localStorage.removeItem("cronisUsuario");
+    navigate("/");
+    toast.success("Has cerrado sesión correctamente.");
   };
 
   const googleLogin = async (credentialResponse) => {
     try {
-      // Envía el token recibido a tu backend para que lo verifique
-      const response = await axios.post("/api/auth/google", {
-        idToken: credentialResponse.credential, // Usa el token ID recibido de Google
-      });
+      if (!credentialResponse) {
+        toast.error(
+          "El inicio de sesión con Google falló. Credenciales no recibidas."
+        );
+        return;
+      }
 
-      // Solo muestra en consola la respuesta recibida
-      console.log(response.data); // Esto mostrará lo que recibiste del backend
+      const response = await axios.post(
+        "http://localhost:5000/api/auth/google",
+        { idToken: credentialResponse }
+      );
 
-      // Si la respuesta indica que el usuario fue creado o encontrado, actualiza el estado
-      if (response.data.user) {
-        const decodedUser = jwtDecode(response.data.token);
-        setUser(decodedUser); // Asumiendo que el token tiene la información del usuario
-        toast.success("Login successful!");
-        navigate("/home");
-      } else {
-        toast.error("Error during login, please try again.");
+      const { id, name, email, tipo, token } = response.data; // Extraer datos del usuario
+
+      if (response.status === 200 || response.status === 201) {
+        // Almacena los datos de usuario directamente desde response.data
+        setUser(response.data); // Actualizar el estado
+        localStorage.setItem("cronisUsuario", JSON.stringify(response.data)); // Guardar en localStorage
+
+        toast.success("¡Bienvenido!");
+
+        // Navegar dependiendo del tipo de usuario usando response.data.tipo en lugar de user.tipo
+        if (tipo === "1") {
+          navigate("/home");
+        } else if (tipo === "0") {
+          navigate("/dashboard");
+        }
       }
     } catch (error) {
+      console.error("Google login failed. Please try again.", error);
       toast.error("Google login failed. Please try again.");
     }
   };
@@ -73,8 +103,8 @@ export const PrivateRoute = ({
     return <Navigate to={redirectTo} />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.tipo)) {
-    const fallbackRedirect = roleRedirects[user.tipo] || redirectTo;
+  if (allowedRoles && !allowedRoles.includes(user.type)) {
+    const fallbackRedirect = roleRedirects[user.type] || redirectTo;
     return <Navigate to={fallbackRedirect} />;
   }
 

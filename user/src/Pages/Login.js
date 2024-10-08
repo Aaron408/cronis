@@ -3,37 +3,44 @@ import { FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { MdMailOutline } from "react-icons/md";
 import { Link } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
 import { AuthContext } from "../Components/AuthContext";
+import { toast } from "react-toastify";
 
 export default function Login() {
-  const { googleLogin } = useContext(AuthContext);
+  const { login, googleLogin } = useContext(AuthContext);
 
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Aquí iría la lógica de inicio de sesión
-    console.log("Login attempt", { email, password, rememberMe });
+    if (!email || !password) {
+      toast.error("Por favor, ingrese su correo y contraseña.");
+      return;
+    }
+    try {
+      await login(email, password, rememberMe);
+    } catch (error) {
+      console.error("Error during login:", error);
+    }
   };
 
   const handleGoogleSuccess = async (response) => {
-    const { tokenId } = response; // Obtiene el token de la respuesta de Google
-
+    const tokenId = response.credential;
     try {
-      // Llama a la función login del AuthContext para enviar el token al backend
       await googleLogin(tokenId);
     } catch (error) {
       console.error("Error during Google login:", error);
-      // Manejar errores (ej: mostrar notificación)
+      toast.error("Error al iniciar sesión con Google");
     }
   };
 
   const handleGoogleError = () => {
-    console.log("Login Failed");
+    toast.error(
+      "Ha ocurrido un error al intentar iniciar sesión, intente nuevamente!"
+    );
   };
 
   return (
@@ -66,7 +73,6 @@ export default function Login() {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  required
                   className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300 pl-10"
                   placeholder="tu@ejemplo.com"
                   value={email}
@@ -94,7 +100,6 @@ export default function Login() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  required
                   className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300 pl-10"
                   placeholder="••••••••"
                   value={password}
@@ -122,7 +127,7 @@ export default function Login() {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                 />
@@ -147,7 +152,7 @@ export default function Login() {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800 focus:outline-none"
               >
                 Iniciar sesión
               </button>
@@ -179,7 +184,7 @@ export default function Login() {
             <p className="text-sm text-gray-600">
               ¿No tienes una cuenta?{" "}
               <Link
-                to="/signup"
+                to="/register"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
                 Regístrate
