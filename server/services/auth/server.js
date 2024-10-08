@@ -13,13 +13,9 @@ require("dotenv").config({ path: "../../.env" }); // Cargar desde la raíz del p
 
 app.use(express.json());
 
-app.use(
-  cors({
-    origin: process.env.ORIGIN_GOOGLE_AUTH, // Permitir solicitudes solo desde tu frontend
-    methods: "GET,POST,PUT,DELETE", // Métodos permitidos
-    allowedHeaders: "Content-Type,Authorization", // Cabeceras permitidas
-  })
-);
+// Activar CORS
+app.use(cors());
+
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -283,43 +279,53 @@ app.post("/api/sendVerificationCode", (req, res) => {
           .json({ message: "Hubo un error al generar el código." });
       }
 
-      // Configurar Nodemailer para enviar el correo
+      // Configurar Nodemailer para enviar el correo usando Titan Email
       const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
+        host: "smtp.titan.email", // Servidor SMTP de Titan
+        port: 465, // Puerto seguro para SMTP con SSL
+        secure: true, // Utilizar SSL
         auth: {
           user: process.env.NODE_EMAIL,
-          pass: process.env.NODE_EMAIL_PASSWORD,
+          pass: "ProyectoIngenieria#2024",
         },
       });
 
-      // Opciones del correo
-      const mailOptions = {
-        from: process.env.NODE_EMAIL,
-        to: email,
-        subject: "Código de verificación",
-        text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`,
+      // Función para enviar correo
+      const enviarCorreo = (email, verificationCode, res) => {
+        // Opciones del correo
+        const mailOptions = {
+          from: `"Nombre de tu empresa" <${process.env.NODE_EMAIL}>`, // Remitente con el nombre de tu empresa
+          to: email, // Correo del destinatario
+          subject: "Código de verificación", // Asunto
+          text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`, // Cuerpo del correo en texto plano
+        };
+
+        // Enviar el correo
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.error("Error al enviar el correo de verificación:", error);
+            // Log más detalles del error
+            console.error("Detalles del error:", error.message, error.stack);
+
+            // Respuesta en caso de error
+            return res.status(500).json({
+              message: "Hubo un error al enviar el correo de verificación.",
+            });
+          }
+
+          // Respuesta en caso de éxito
+          res.status(200).json({
+            message: "Código de verificación enviado correctamente",
+          });
+        });
       };
 
-      // Enviar el correo
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error al enviar el correo de verificación:", error);
-          // Log more details about the error
-          console.error("Error details:", error.message, error.stack);
-          return res.status(500).json({
-            message: "Hubo un error al enviar el correo de verificación.",
-          });
-        }
-
-        res
-          .status(200)
-          .json({ message: "Código de verificación enviado correctamente" });
-      });
+      // Llamar a la función enviarCorreo con los parámetros correctos
+      enviarCorreo(email, verificationCode, res);
     }
   );
 });
+
 
 app.post("/api/verify-code", (req, res) => {
   const { email, code } = req.body;
