@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from 'react-toastify';
 import axios from 'axios';
 
+import { AuthApi } from "../api";
+
 export default function VerificationCode() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,13 +78,13 @@ export default function VerificationCode() {
     if (verificationCode.length === 6) {
       setIsLoading(true);
       try {
-        const response = await axios.post('http://localhost:5000/api/verify-code', {
+        const response = await AuthApi.post('/api/verify-code', {
           email,
           code: verificationCode
         });
 
         if (response.data.isValid) {
-          const registerResponse = await axios.post('http://localhost:5000/api/register', {
+          const registerResponse = await AuthApi.post('/api/register', {
             nombre,
             email,
             password
@@ -109,7 +111,7 @@ export default function VerificationCode() {
   const handleResendCode = async () => {
     setIsResending(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/sendVerificationCode', { email });
+      const response = await AuthApi.post('api/sendVerificationCode', { email });
       if (response.data.message) {
         toast.success('Código de verificación reenviado');
         setCode(["", "", "", "", "", ""]);

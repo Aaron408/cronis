@@ -5,6 +5,8 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { AuthContext } from "../Components/AuthContext";
 import { toast } from "react-toastify";
 
+import { AuthApi } from "../api";
+
 export default function SignUp() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -46,58 +48,38 @@ export default function SignUp() {
 
     try {
       // Verificar si ya existe una cuenta con el correo proporcionado
-      const checkUserResponse = await fetch(
-        "http://localhost:5000/api/checkEmail",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }), // Enviar el email para comprobar
-        }
-      );
+      const checkUserResponse = await AuthApi.post("/api/checkEmail", {
+        email,
+      });
 
-      const checkUserData = await checkUserResponse.json();
-
-      if (checkUserResponse.ok) {
-        if (checkUserData.exists) {
-          // Si ya existe una cuenta con este correo
-          toast.error("Ya existe una cuenta con este correo electrónico.");
-          return;
-        }
-      } else {
-        toast.error(
-          "Hubo un error al verificar el correo. Inténtalo nuevamente."
-        );
+      // Aquí no necesitas llamar a checkUserResponse.json(), ya que Axios ya maneja esto
+      if (checkUserResponse.data.exists) {
+        // Si ya existe una cuenta con este correo
+        toast.error("Ya existe una cuenta con este correo electrónico.");
         return;
       }
 
       // Si no existe una cuenta, proceder con el envío del código de verificación
-      const response = await fetch(
-        "http://localhost:5000/api/sendVerificationCode",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }),
-        }
-      );
+      const response = await AuthApi.post("/api/sendVerificationCode", {
+        email,
+      });
 
-      const data = await response.json();
-      if (response.ok) {
+      if (response.status === 200) {
         toast.success("El código de verificación ha sido enviado a tu correo.");
-        const nombre = firstName + " " + lastNameP + " " + lastNameM
+        const nombre = `${firstName} ${lastNameP} ${lastNameM}`;
+
         // Navegar al componente VerificationCode pasando todos los datos del formulario
         navigate("/verification", {
           state: { nombre, email, password },
         });
       } else {
         toast.error(
-          data.message || "Hubo un error al enviar el código de verificación."
+          response.data.message ||
+            "Hubo un error al enviar el código de verificación."
         );
       }
     } catch (error) {
+      console.error("Error de conexión:", error);
       toast.error("Error de conexión. Inténtalo nuevamente.");
     }
   };

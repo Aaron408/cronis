@@ -16,7 +16,6 @@ app.use(express.json());
 // Activar CORS
 app.use(cors());
 
-
 // Configuración de la base de datos
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
@@ -33,6 +32,48 @@ db.connect((err) => {
     console.log("Conexión exitosa a la base de datos!");
   }
 });
+
+//-------------TOKEN VERIFICATION----------------//
+
+// Middleware para verificar el token
+const verifyToken = async (req, res, next) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Acceso denegado. Token no proporcionado." });
+  }
+
+  try {
+    // Busca el token en la base de datos
+    const session = await db.query(
+      "SELECT * FROM session_token WHERE token = ?",
+      [token]
+    );
+
+    if (session.length === 0) {
+      return res
+        .status(401)
+        .json({ message: "Token inválido o no encontrado." });
+    }
+
+    // Verifica si el token ha expirado
+    const sessionData = session[0];
+    const now = new Date();
+    if (new Date(sessionData.expires_date) < now) {
+      return res.status(401).json({ message: "Token ha expirado." });
+    }
+
+    // Si todo está bien, pasa al siguiente middleware
+    req.user = { id: sessionData.user_id };
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Error al verificar el token." });
+  }
+};
+
+module.exports = verifyToken;
 
 //-------------LOGIN PAGE-------------//
 
@@ -157,61 +198,122 @@ app.post("/api/auth/google", async (req, res) => {
           token: sessionToken,
         });
       } else {
-        const newUserQuery = `
-            INSERT INTO users (google_id, name, email, email_verified, profile_picture_url, given_name, suscription_plan, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `;
+        // Si no existe un usuario con el google_id, verificar si hay un usuario con el correo
+        const queryCheckUserByEmail = `
+        SELECT * 
+        FROM users 
+        WHERE email = ?
+    `;
 
-        const newUser = {
-          google_id: sub,
-          name: name,
-          email: email,
-          email_verified: true,
-          profile_picture_url: picture,
-          given_name: given_name,
-          suscription_plan: 1,
-          status: 1,
-        };
-
-        db.query(
-          newUserQuery,
-          [
-            newUser.google_id,
-            newUser.name,
-            newUser.email,
-            newUser.email_verified,
-            newUser.profile_picture_url,
-            newUser.given_name,
-            newUser.suscription_plan,
-            newUser.status,
-          ],
-          (err, insertResult) => {
-            if (err) {
-              console.error("Error inserting new user:", err);
-              return res.status(500).json({ error: "Error creating new user" });
-            }
-
-            const sessionToken = generateToken30Days({
-              id: insertResult.insertId,
-              email: newUser.email,
-            });
-
-            saveTokenFor30Days(insertResult.insertId, sessionToken, (err) => {
-              if (err) {
-                return res
-                  .status(500)
-                  .json({ message: "Error al guardar el token de sesión." });
-              }
-            });
-
-            return res.status(201).json({
-              name: newUser.name,
-              type: "1",
-              email: newUser.email,
-              token: sessionToken,
-            });
+        db.query(queryCheckUserByEmail, [email], (err, emailResults) => {
+          if (err) {
+            console.error("Database query error:", err);
+            return res.status(500).json({ error: "Database error" });
           }
-        );
+
+          if (emailResults.length > 0) {
+            // Si existe un usuario con el correo, actualizar su google_id
+            const user = emailResults[0];
+            const updateGoogleIdQuery = `
+                UPDATE users 
+                SET google_id = ?, profile_picture_url = ?
+                WHERE id = ?
+            `;
+
+            db.query(updateGoogleIdQuery, [sub, picture, user.id], (err) => {
+              if (err) {
+                console.error("Error updating google_id:", err);
+                return res.status(500).json({ error: "Error updating user" });
+              }
+
+              // Generar token y devolver datos
+              const sessionToken = generateToken30Days({
+                id: user.id,
+                email: user.email,
+              });
+
+              saveTokenFor30Days(user.id, sessionToken, (err) => {
+                if (err) {
+                  return res
+                    .status(500)
+                    .json({ message: "Error al guardar el token de sesión." });
+                }
+              });
+
+              return res.status(200).json({
+                name: user.name,
+                type: user.type,
+                email: user.email,
+                token: sessionToken,
+              });
+            });
+          } else {
+            // Si no existe, insertar nuevo usuario
+            const newUserQuery = `
+                INSERT INTO users (google_id, name, email, email_verified, profile_picture_url, given_name, suscription_plan, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+
+            const newUser = {
+              google_id: sub,
+              name: name,
+              email: email,
+              email_verified: true,
+              profile_picture_url: picture,
+              given_name: given_name,
+              suscription_plan: 1,
+              status: 1,
+            };
+
+            db.query(
+              newUserQuery,
+              [
+                newUser.google_id,
+                newUser.name,
+                newUser.email,
+                newUser.email_verified,
+                newUser.profile_picture_url,
+                newUser.given_name,
+                newUser.suscription_plan,
+                newUser.status,
+              ],
+              (err, insertResult) => {
+                if (err) {
+                  console.error("Error inserting new user:", err);
+                  return res
+                    .status(500)
+                    .json({ error: "Error creating new user" });
+                }
+
+                const sessionToken = generateToken30Days({
+                  id: insertResult.insertId,
+                  email: newUser.email,
+                });
+
+                saveTokenFor30Days(
+                  insertResult.insertId,
+                  sessionToken,
+                  (err) => {
+                    if (err) {
+                      return res
+                        .status(500)
+                        .json({
+                          message: "Error al guardar el token de sesión.",
+                        });
+                    }
+                  }
+                );
+
+                return res.status(201).json({
+                  name: newUser.name,
+                  type: "1",
+                  email: newUser.email,
+                  token: sessionToken,
+                });
+              }
+            );
+          }
+        });
       }
     });
   } catch (error) {
@@ -244,9 +346,9 @@ app.post("/api/checkEmail", (req, res) => {
       }
 
       if (results[0].count > 0) {
-        return res.status(200).json({ exists: true }); // Correo ya registrado
+        return res.status(200).json({ exists: true });
       } else {
-        return res.status(200).json({ exists: false }); // Correo no registrado
+        return res.status(200).json({ exists: false });
       }
     }
   );
@@ -259,15 +361,12 @@ const generateVerificationCode = () => {
 app.post("/api/sendVerificationCode", (req, res) => {
   const { email } = req.body;
 
-  // Validar que se haya proporcionado el correo
   if (!email) {
     return res.status(400).json({ message: "Correo electrónico requerido" });
   }
 
-  // Generar el código de verificación
   const verificationCode = generateVerificationCode();
 
-  // Insertar el código de verificación en la base de datos
   db.query(
     "INSERT INTO verification_codes (email, code) VALUES (?, ?)",
     [email, verificationCode],
@@ -279,53 +378,44 @@ app.post("/api/sendVerificationCode", (req, res) => {
           .json({ message: "Hubo un error al generar el código." });
       }
 
-      // Configurar Nodemailer para enviar el correo usando Titan Email
       const transporter = nodemailer.createTransport({
-        host: "smtp.titan.email", // Servidor SMTP de Titan
-        port: 465, // Puerto seguro para SMTP con SSL
-        secure: true, // Utilizar SSL
+        host: "smtp.titan.email",
+        port: 465,
+        secure: true,
         auth: {
           user: process.env.NODE_EMAIL,
           pass: process.env.NODE_PASSWORD,
         },
       });
 
-      // Función para enviar correo
       const enviarCorreo = (email, verificationCode, res) => {
-        // Opciones del correo
         const mailOptions = {
-          from: `"CRONIS" <${process.env.NODE_EMAIL}>`, // Remitente con el nombre de tu empresa
-          to: email, // Correo del destinatario
-          subject: "Código de verificación", // Asunto
+          from: `"CRONIS" <${process.env.NODE_EMAIL}>`,
+          to: email,
+          subject: "Código de verificación",
           text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`, // Cuerpo del correo en texto plano
         };
 
-        // Enviar el correo
         transporter.sendMail(mailOptions, (error, info) => {
           if (error) {
             console.error("Error al enviar el correo de verificación:", error);
-            // Log más detalles del error
             console.error("Detalles del error:", error.message, error.stack);
 
-            // Respuesta en caso de error
             return res.status(500).json({
               message: "Hubo un error al enviar el correo de verificación.",
             });
           }
 
-          // Respuesta en caso de éxito
           res.status(200).json({
             message: "Código de verificación enviado correctamente",
           });
         });
       };
 
-      // Llamar a la función enviarCorreo con los parámetros correctos
       enviarCorreo(email, verificationCode, res);
     }
   );
 });
-
 
 app.post("/api/verify-code", (req, res) => {
   const { email, code } = req.body;
@@ -340,10 +430,8 @@ app.post("/api/verify-code", (req, res) => {
       }
 
       if (results.length > 0) {
-        // Código válido
         res.json({ isValid: true });
       } else {
-        // Código inválido o expirado
         res.json({ isValid: false });
       }
     }
@@ -353,13 +441,11 @@ app.post("/api/verify-code", (req, res) => {
 app.post("/api/register", async (req, res) => {
   const { nombre, email, password } = req.body;
 
-  // Validaciones básicas
   if (!nombre || !email || !password) {
     return res.status(400).json({ error: "Todos los campos son requeridos" });
   }
 
   try {
-    // Verificar si el usuario ya existe
     db.query(
       "SELECT * FROM users WHERE email = ?",
       [email],
@@ -373,13 +459,11 @@ app.post("/api/register", async (req, res) => {
           return res.status(400).json({ error: "El usuario ya existe" });
         }
 
-        // Hashear la contraseña
         const hashedPassword = crypto
           .createHash("md5")
           .update(password)
           .digest("hex");
 
-        // Insertar el nuevo usuario
         db.query(
           "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
           [nombre, email, hashedPassword],
@@ -391,7 +475,6 @@ app.post("/api/register", async (req, res) => {
                 .json({ error: "Error al crear nuevo usuario" });
             }
 
-            // Eliminar el código de verificación usado
             db.query("DELETE FROM verification_codes WHERE email = ?", [email]);
 
             res.status(201).json({ success: true, userId: result.insertId });
@@ -404,6 +487,8 @@ app.post("/api/register", async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+//--------------HOME PAGE---------------//
 
 // Levantar el servidor
 app.listen(PORT, () => {

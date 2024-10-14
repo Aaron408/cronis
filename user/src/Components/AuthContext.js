@@ -4,6 +4,8 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { jwtDecode } from "jwt-decode";
 
+import { AuthApi } from "../api";
+
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -16,7 +18,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, rememberMe) => {
     try {
-      const response = await axios.post("http://localhost:5000/api/login", {
+      const response = await AuthApi.post("/api/login", {
         email,
         password,
         rememberMe,
@@ -35,6 +37,8 @@ export const AuthProvider = ({ children }) => {
       console.error("Error during login:", error);
       if (error.response && error.response.status === 401) {
         toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
+      } else if (error.response && error.response.status === 402) {
+        toast.error("Cuenta existente sin registro de google!");
       } else {
         toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
       }
@@ -58,10 +62,9 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/google",
-        { idToken: credentialResponse }
-      );
+      const response = await AuthApi.post("/api/auth/google", {
+        idToken: credentialResponse,
+      });
 
       const { id, name, email, tipo, token } = response.data; // Extraer datos del usuario
 
