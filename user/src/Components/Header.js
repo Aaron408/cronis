@@ -43,10 +43,10 @@ const Header = ({ onToggleSidebar }) => {
         >
           <HiMenu className="h-7 w-7 mt-1" />
         </button>
-        <h1 className="text-2xl font-bold">Mi Agenda</h1>
+        <h1 className="hidden md:flex text-2xl font-bold">Mi Agenda</h1>
       </div>
       <div className="flex items-center space-x-4">
-        <form>
+        <form className="hidden md:flex">
           <div className="relative">
             <IoSearch className="absolute left-2.5 top-2.5 h-5 w-5 text-gray-500" />
             <input
@@ -56,7 +56,7 @@ const Header = ({ onToggleSidebar }) => {
             />
           </div>
         </form>
-        <button className="text-gray-600 hover:text-gray-900">
+        <button className="hidden md:flex text-gray-600 hover:text-gray-900">
           <IoSettingsOutline className="h-6 w-6" />
         </button>
         <div className="relative" ref={userMenuRef}>

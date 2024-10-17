@@ -4,7 +4,7 @@ import { FaBriefcase, FaUser } from "react-icons/fa";
 
 const SideBar = ({ isCollapsed }) => {
   return (
-    <aside className={`border-r transition-width duration-300 ${isCollapsed ? "w-20" : "w-64"}`}>
+    <aside className={`hidden md:flex border-r transition-width duration-300 ${isCollapsed ? "w-20" : "w-64"}`}>
       <div className="h-full overflow-y-auto">
         <div className="space-y-4 py-4">
         <div className={`${isCollapsed ? "px-3" : "px-4"}`}>

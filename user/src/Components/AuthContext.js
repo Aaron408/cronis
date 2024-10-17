@@ -47,10 +47,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    setUser(null);
-    localStorage.removeItem("cronisUsuario");
-    navigate("/");
-    toast.success("Has cerrado sesión correctamente.");
+    const userData = JSON.parse(localStorage.getItem("cronisUsuario"));
+    const session_token = userData.token;
+    console.log(session_token);
+
+    try {
+      const response = await AuthApi.post("/api/logout", {
+        session_token,
+      });
+      if (response.status && response.status === 200) {
+        setUser(null);
+        localStorage.removeItem("cronisUsuario");
+        navigate("/");
+        toast.success("Has cerrado sesión correctamente.");
+      } else {
+        toast.error("Error al intentar cerrar sesión! Intentelo nuevamente.");
+      }
+    } catch (error) {
+      console.error("Error during logout:", error);
+      toast.error("Error al intentar cerrar sesión! Intentelo nuevamente.");
+    }
   };
 
   const googleLogin = async (credentialResponse) => {

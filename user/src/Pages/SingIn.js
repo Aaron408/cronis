@@ -77,7 +77,7 @@ export default function SignUp() {
           response.data.message ||
             "Hubo un error al enviar el código de verificación."
         );
-      }
+      } 
     } catch (error) {
       console.error("Error de conexión:", error);
       toast.error("Error de conexión. Inténtalo nuevamente.");

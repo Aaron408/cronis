@@ -8,6 +8,7 @@ const PORT = process.env.AUTH_PORT || 5000;
 const cors = require("cors"); // Importar cors
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const { error } = require("console");
 
 require("dotenv").config({ path: "../../.env" }); // Cargar desde la raíz del proyecto
 
@@ -132,6 +133,23 @@ app.post("/api/login", (req, res) => {
       email: user.email,
       token: token,
     });
+  });
+});
+
+app.post("/api/logout", (req, res) => {
+  const { session_token } = req.body;
+  const token = session_token;
+  const query = `DELETE FROM session_token WHERE token = ?`;
+
+  db.query(query, token, (err, results) => {
+    if (err) {
+      console.error("Database query error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    } else {
+      return res
+        .status(200)
+        .json({ message: "Token eliminado exitosamente!." });
+    }
   });
 });
 
@@ -295,11 +313,9 @@ app.post("/api/auth/google", async (req, res) => {
                   sessionToken,
                   (err) => {
                     if (err) {
-                      return res
-                        .status(500)
-                        .json({
-                          message: "Error al guardar el token de sesión.",
-                        });
+                      return res.status(500).json({
+                        message: "Error al guardar el token de sesión.",
+                      });
                     }
                   }
                 );
