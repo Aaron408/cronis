@@ -111,7 +111,7 @@ export default function VerificationCode() {
   const handleResendCode = async () => {
     setIsResending(true);
     try {
-      const response = await AuthApi.post('api/sendVerificationCode', { email });
+      const response = await AuthApi.post('/api/sendVerificationCode', { email });
       if (response.data.message) {
         toast.success('Código de verificación reenviado');
         setCode(["", "", "", "", "", ""]);

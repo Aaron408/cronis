@@ -113,8 +113,8 @@ app.post("/api/login", (req, res) => {
       console.error("Database query error:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
-
-    if (results.length === 0) {
+    console.log(results.length);
+    if (results.length == 0) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 

@@ -28,12 +28,15 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       localStorage.setItem("cronisUsuario", JSON.stringify(userData));
       toast.success("¡Inicio de sesión exitoso!");
+
+      // Redirige según el tipo de usuario
       if (type === "1") {
         navigate("/home");
       } else if (type === "0") {
         navigate("/dashboard");
       }
     } catch (error) {
+      // Manejo de errores
       console.error("Error during login:", error);
       if (error.response && error.response.status === 401) {
         toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");

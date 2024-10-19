@@ -10,13 +10,12 @@ import { IoSettingsOutline } from "react-icons/io5";
 const Header = ({ onToggleSidebar }) => {
   const { logout } = useContext(AuthContext);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const userMenuRef = useRef(null); // Referencia al menú de usuario
+  const userMenuRef = useRef(null);
 
-  // Cerrar el menú al hacer clic fuera de él
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setIsUserMenuOpen(false); // Cerrar el menú si se hace clic fuera
+        setIsUserMenuOpen(false);
       }
     };
 
@@ -27,11 +26,11 @@ const Header = ({ onToggleSidebar }) => {
   }, []);
 
   const handleMenuOptionClick = () => {
-    setIsUserMenuOpen(false); // Cerrar el menú al seleccionar una opción
+    setIsUserMenuOpen(false);
   };
 
   const handleLogout = () => {
-    logout(); // Cerrar el menú al seleccionar una opción
+    logout();
   };
 
   return (
@@ -39,7 +38,7 @@ const Header = ({ onToggleSidebar }) => {
       <div className="flex items-center space-x-4">
         <button
           onClick={onToggleSidebar}
-          className="text-gray-600 hover:text-gray-900"
+          className="text-gray-600 hover:text-gray-900 md:hidden"
         >
           <HiMenu className="h-7 w-7 mt-1" />
         </button>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FiPlus } from "react-icons/fi";
 import { MdOutlineKeyboardArrowLeft } from "react-icons/md";
 
@@ -8,7 +8,7 @@ import SideBar from "../../Components/SideBar";
 
 export default function Home() {
   const [date, setDate] = useState(new Date());
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const events = [
     {
@@ -53,7 +53,7 @@ export default function Home() {
             setDate(new Date(date.getFullYear(), date.getMonth(), i))
           }
           className={`text-center py-1 hover:bg-gray-200 rounded-full ${
-            i === date.getDate() ? "bg-blue-500 text-white" : ""
+            i === date.getDate() ? "bg-black hover:bg-gray-700 text-white" : ""
           }`}
         >
           {i}
@@ -63,14 +63,30 @@ export default function Home() {
 
     return days;
   };
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
 
   return (
     <div className="flex h-screen flex-col">
-      <Header
-        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-      />
+      <Header onToggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
-        <SideBar isCollapsed={isSidebarCollapsed} />
+      <SideBar isOpen={isSidebarOpen} onClose={closeSidebar} />
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
@@ -84,18 +100,8 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                {events.map((event, index) => (
-                  <div key={index} className="rounded-lg border p-4">
-                    <h3 className="mb-2 text-lg font-semibold">
-                      {event.time} - {event.title}
-                    </h3>
-                    <p className="text-sm text-gray-500">{event.description}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-md border p-4">
+            <div className="flex flex-col md:grid md:grid-cols-2 gap-6">
+              <div className="rounded-md border p-4 order-first md:order-last">
                 <div className="mb-4 flex justify-between items-center">
                   <button className="text-gray-600 hover:text-gray-900">
                     <svg
@@ -136,12 +142,22 @@ export default function Home() {
                 </div>
                 <div className="grid grid-cols-7 gap-2 text-sm">
                   {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((day) => (
-                    <div key={day} className="text-center font-semibold">
+                    <div key={day} className="text-center font-semibold bg">
                       {day}
                     </div>
                   ))}
                   {renderCalendar()}
                 </div>
+              </div>
+              <div className="space-y-4 order-last md:order-first">
+                {events.map((event, index) => (
+                  <div key={index} className="rounded-lg border p-4">
+                    <h3 className="mb-2 text-lg font-semibold">
+                      {event.time} - {event.title}
+                    </h3>
+                    <p className="text-sm text-gray-500">{event.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
