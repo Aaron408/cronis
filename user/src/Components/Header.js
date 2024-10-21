@@ -1,6 +1,7 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { AuthContext } from "../Components/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 import { FaUser } from "react-icons/fa";
 import { HiMenu } from "react-icons/hi";
@@ -8,6 +9,7 @@ import { IoSearch } from "react-icons/io5";
 import { IoSettingsOutline } from "react-icons/io5";
 
 const Header = ({ onToggleSidebar }) => {
+  const navigate = useNavigate();
   const { logout } = useContext(AuthContext);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
@@ -27,6 +29,10 @@ const Header = ({ onToggleSidebar }) => {
 
   const handleMenuOptionClick = () => {
     setIsUserMenuOpen(false);
+  };
+  
+  const handleProfile = () => {
+    navigate("/profile");
   };
 
   const handleLogout = () => {
@@ -76,7 +82,7 @@ const Header = ({ onToggleSidebar }) => {
                 <div
                   className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
                   role="menuitem"
-                  onClick={handleMenuOptionClick}
+                  onClick={handleProfile}
                 >
                   Perfil
                 </div>

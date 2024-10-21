@@ -3,8 +3,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 //Pages
 import Login from "./Pages/Login";
-import Home from "./Pages/Users/Home";
 import SingIn from "./Pages/SingIn";
+import Home from "./Pages/Users/Home";
+import Profile from "./Pages/Users/Profile";
 
 import { AuthContext } from "./Components/AuthContext";
 import { PrivateRoute } from "./Components/AuthContext";
@@ -26,6 +27,7 @@ const Navigation = () => {
       <Route path="/register" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <SingIn />} />
       <Route path="/login" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <Login />} />
       <Route path="/verification" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <VerificationCode />} />
+        <Route path="/profile" element={<Profile />} />
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />
       </Route>

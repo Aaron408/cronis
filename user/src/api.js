@@ -13,14 +13,14 @@ export const AuthApi = axios.create({
 });
 
 export const activityApi = axios.create({
-  baseURL: 'http://localhost:3002',
+  baseURL: 'http://localhost:5001',
   headers: {
     Authorization: `Bearer ${getToken()}`,
   },
 });
 
 export const paymentApi = axios.create({
-  baseURL: 'http://localhost:3003',
+  baseURL: 'http://localhost:5002',
   headers: {
     Authorization: `Bearer ${getToken()}`,
   },

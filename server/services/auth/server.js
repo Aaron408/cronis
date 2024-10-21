@@ -1,21 +1,25 @@
 // services/auth/server.js
 const express = require("express");
 const mysql = require("mysql2");
-const jwt = require("jsonwebtoken");
+const cors = require("cors"); // Importar cors
 const axios = require("axios");
+
+const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.AUTH_PORT || 5000;
-const cors = require("cors"); // Importar cors
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-const { error } = require("console");
 
 require("dotenv").config({ path: "../../.env" }); // Cargar desde la raíz del proyecto
 
 app.use(express.json());
 
 // Activar CORS
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -36,8 +40,8 @@ db.connect((err) => {
 
 //-------------TOKEN VERIFICATION----------------//
 
-// Middleware para verificar el token
-const verifyToken = async (req, res, next) => {
+// Middleware para verificar el token sin promesas
+const verifyToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
 
   if (!token) {
@@ -46,35 +50,35 @@ const verifyToken = async (req, res, next) => {
       .json({ message: "Acceso denegado. Token no proporcionado." });
   }
 
-  try {
-    // Busca el token en la base de datos
-    const session = await db.query(
-      "SELECT * FROM session_token WHERE token = ?",
-      [token]
-    );
+  db.query(
+    "SELECT * FROM session_token WHERE token = ?",
+    [token],
+    (error, session) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al verificar el token." });
+      }
 
-    if (session.length === 0) {
-      return res
-        .status(401)
-        .json({ message: "Token inválido o no encontrado." });
+      if (session.length === 0) {
+        return res
+          .status(401)
+          .json({ message: "Token inválido o no encontrado." });
+      }
+
+      // Verifica si el token ha expirado
+      const sessionData = session[0];
+      const now = new Date();
+      if (new Date(sessionData.expires_date) < now) {
+        return res.status(401).json({ message: "Token ha expirado." });
+      }
+
+      // Si todo está bien, pasa al siguiente middleware
+      req.user = { id: sessionData.user_id };
+      next();
     }
-
-    // Verifica si el token ha expirado
-    const sessionData = session[0];
-    const now = new Date();
-    if (new Date(sessionData.expires_date) < now) {
-      return res.status(401).json({ message: "Token ha expirado." });
-    }
-
-    // Si todo está bien, pasa al siguiente middleware
-    req.user = { id: sessionData.user_id };
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Error al verificar el token." });
-  }
+  );
 };
-
-module.exports = verifyToken;
 
 //-------------LOGIN PAGE-------------//
 
@@ -113,7 +117,6 @@ app.post("/api/login", (req, res) => {
       console.error("Database query error:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
-    console.log(results.length);
     if (results.length == 0) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
