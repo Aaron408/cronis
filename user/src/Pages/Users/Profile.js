@@ -5,7 +5,7 @@ import { UsersApi } from "../../api";
 // Icons
 import { IoCameraOutline } from "react-icons/io5";
 import { IoMdNotificationsOutline, IoIosArrowBack } from "react-icons/io";
-import { FaUser, FaClock } from "react-icons/fa";
+import { FaUser, FaClock, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -13,6 +13,10 @@ export default function Profile() {
     navigate("/home");
   };
   const [activeTab, setActiveTab] = useState("personal");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [usuario, setUsuario] = useState({
     name: "",
     google_id: "",
@@ -55,7 +59,7 @@ export default function Profile() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     UsersApi.put("/api/usuario", userData)
       .then((response) => {
         console.log("Datos actualizados con éxito:", response.data);
@@ -272,46 +276,90 @@ export default function Profile() {
                     contraseña aquí.
                   </p>
                   <div className="space-y-4 mt-10">
-                    <div>
+                    <div className="relative">
                       <label
                         htmlFor="current-password"
                         className="block text-sm font-medium text-gray-700"
                       >
                         Contraseña actual
                       </label>
+                      <div className="absolute mt-4 md:mt-3 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaLock
+                          className="h-5 w-5 text-gray-400"
+                          aria-hidden="true"
+                        />
+                      </div>
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         id="current-password"
                         name="current-password"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                        placeholder="Escribe tu contraseña actual"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="mt-1 block w-full pl-10 pr-10 border border-gray-300 rounded-md shadow-sm py-2 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
                       />
                     </div>
-                    <div>
+
+                    <div className="relative">
                       <label
                         htmlFor="new-password"
                         className="block text-sm font-medium text-gray-700"
                       >
                         Nueva contraseña
                       </label>
+                      <div className="absolute mt-4 md:mt-3 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaLock
+                          className="h-5 w-5 text-gray-400"
+                          aria-hidden="true"
+                        />
+                      </div>
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         id="new-password"
                         name="new-password"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                        placeholder="Escribe tu nueva contraseña"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="mt-1 block w-full pl-10 pr-10 border border-gray-300 rounded-md shadow-sm py-2 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
                       />
+                      <div className="absolute inset-y-11 right-0 pr-3 flex items-center">
+                        <button
+                          type="button"
+                          className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <FaEyeSlash
+                              className="h-5 w-5"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <FaEye className="h-5 w-5" aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <div>
+                    <div className="relative">
                       <label
                         htmlFor="confirm-password"
                         className="block text-sm font-medium text-gray-700"
                       >
                         Confirmar nueva contraseña
                       </label>
+                      <div className="absolute mt-4 md:mt-3 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaLock
+                          className="h-5 w-5 text-gray-400"
+                          aria-hidden="true"
+                        />
+                      </div>
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         id="confirm-password"
                         name="confirm-password"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                        placeholder="Repite la contraseña"
+                        value={repeatPassword}
+                        onChange={(e) => setRepeatPassword(e.target.value)}
+                        className="mt-1 block w-full pl-10 pr-10 border border-gray-300 rounded-md shadow-sm py-2 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
                       />
                     </div>
                   </div>
