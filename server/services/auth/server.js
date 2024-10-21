@@ -1,7 +1,7 @@
 // services/auth/server.js
 const express = require("express");
 const mysql = require("mysql2");
-const cors = require("cors"); // Importar cors
+const cors = require("cors");
 const axios = require("axios");
 
 const jwt = require("jsonwebtoken");
@@ -37,48 +37,6 @@ db.connect((err) => {
     console.log("Conexión exitosa a la base de datos!");
   }
 });
-
-//-------------TOKEN VERIFICATION----------------//
-
-// Middleware para verificar el token sin promesas
-const verifyToken = (req, res, next) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-
-  if (!token) {
-    return res
-      .status(401)
-      .json({ message: "Acceso denegado. Token no proporcionado." });
-  }
-
-  db.query(
-    "SELECT * FROM session_token WHERE token = ?",
-    [token],
-    (error, session) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al verificar el token." });
-      }
-
-      if (session.length === 0) {
-        return res
-          .status(401)
-          .json({ message: "Token inválido o no encontrado." });
-      }
-
-      // Verifica si el token ha expirado
-      const sessionData = session[0];
-      const now = new Date();
-      if (new Date(sessionData.expires_date) < now) {
-        return res.status(401).json({ message: "Token ha expirado." });
-      }
-
-      // Si todo está bien, pasa al siguiente middleware
-      req.user = { id: sessionData.user_id };
-      next();
-    }
-  );
-};
 
 //-------------LOGIN PAGE-------------//
 
@@ -506,8 +464,6 @@ app.post("/api/register", async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
-
-//--------------HOME PAGE---------------//
 
 // Levantar el servidor
 app.listen(PORT, () => {

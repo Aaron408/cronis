@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { UsersApi } from "../../api";
 
 // Icons
 import { IoCameraOutline } from "react-icons/io5";
@@ -12,8 +13,57 @@ export default function Profile() {
     navigate("/home");
   };
   const [activeTab, setActiveTab] = useState("personal");
-  const [notifications, setNotifications] = useState(true);
-  const [emailnotifications, setEmailNotifications] = useState(true);
+  const [usuario, setUsuario] = useState({
+    name: "",
+    google_id: "",
+    email: "",
+    biography: "",
+    profile_picture_url: "",
+    notifications: "1",
+    emailnotifications: "1",
+    start_time: "",
+    end_time: "",
+  });
+
+  const userData = async () => {
+    try {
+      const response = await UsersApi.get("/api/userData");
+      setUsuario(response.data);
+    } catch (error) {
+      console.error("Error al obtener los datos del usuario", error);
+    }
+  };
+
+  useEffect(() => {
+    userData();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setUsuario((prevState) => ({
+      ...prevState,
+      [name]: value,
+    }));
+  };
+
+  const handleNotificationChange = (name) => {
+    setUsuario((prevState) => ({
+      ...prevState,
+      [name]: prevState[name] === "1" ? "0" : "1",
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    UsersApi.put("/api/usuario", userData)
+      .then((response) => {
+        console.log("Datos actualizados con éxito:", response.data);
+      })
+      .catch((error) => {
+        console.error("Error al actualizar los datos:", error);
+      });
+  };
 
   return (
     <div className="container mx-auto py-5 md:py-10 px-1.5 md:px-14 overflow-x-hidden">
@@ -35,7 +85,7 @@ export default function Profile() {
       <div className="grid gap-6 md:grid-cols-[300px_1fr] max-w-full">
         <div className="space-y-6">
           <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-xl font-semibold">Juan Doe</h2>
+            <h2 className="text-xl font-semibold">{usuario.name}</h2>
             <p className="text-sm text-gray-500">Desarrollador de Software</p>
             <div className="mt-6 flex flex-col items-center">
               <div className="w-32 h-32 bg-gray-200 rounded-full mb-4 flex items-center justify-center">
@@ -119,11 +169,11 @@ export default function Profile() {
                       </label>
                       <input
                         type="text"
-                        id="full-name"
-                        name="full-name"
-                        placeholder="Nombre"
+                        id="name"
+                        name="name"
+                        placeholder="Nombre completo"
                         disabled={true}
-                        value={"Aaron Reyes Ruiz"}
+                        value={usuario.name}
                         className="bg-gray-200 text-gray-400 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
                       />
                     </div>
@@ -140,7 +190,7 @@ export default function Profile() {
                         name="email"
                         placeholder="juan.doe@ejemplo.com"
                         disabled={true}
-                        value={"correo@example.com"}
+                        value={usuario.email}
                         className="bg-gray-200 text-gray-400 text-gray-400 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
                       />
                     </div>
@@ -152,11 +202,15 @@ export default function Profile() {
                         Biografía
                       </label>
                       <textarea
-                        id="bio"
-                        name="bio"
+                        id="biography"
+                        name="biography"
                         rows={1}
                         placeholder="Cuéntanos un poco sobre ti..."
-                        className="text-gray-400 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                        value={
+                          usuario.biography == null ? "" : usuario.biography
+                        }
+                        onChange={handleChange}
+                        className="text-gray-600 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
                         style={{ minHeight: "24px" }}
                       ></textarea>
                     </div>
@@ -168,15 +222,17 @@ export default function Profile() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                       <div className="relative">
                         <label
-                          htmlFor="hora-inicio"
+                          htmlFor="start_time"
                           className="block text-sm font-medium text-gray-700"
                         >
                           Hora inicio
                         </label>
                         <input
                           type="time"
-                          id="hora-inicio"
-                          name="hora-inicio"
+                          id="start_time"
+                          name="start_time"
+                          value={usuario.start_time}
+                          onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm pr-10"
                         />
                         <span className="absolute inset-y-11 right-0 flex items-center pr-3 text-gray-500">
@@ -185,15 +241,17 @@ export default function Profile() {
                       </div>
                       <div className="relative">
                         <label
-                          htmlFor="hora-fin"
+                          htmlFor="end_time"
                           className="block text-sm font-medium text-gray-700"
                         >
                           Hora fin
                         </label>
                         <input
                           type="time"
-                          id="hora-fin"
-                          name="hora-fin"
+                          id="end_time"
+                          name="end_time"
+                          value={usuario.end_time}
+                          onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm pr-10"
                         />
                         <span className="absolute inset-y-11 right-0 flex items-center pr-3 text-gray-500">
@@ -280,16 +338,21 @@ export default function Profile() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setNotifications(!notifications)}
+                        onClick={() =>
+                          handleNotificationChange("notifications")
+                        }
                         className={`${
-                          notifications ? "bg-black" : "bg-gray-200"
+                          usuario.notifications === "1"
+                            ? "bg-black"
+                            : "bg-gray-200"
                         } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none`}
                       >
-                        <span className="sr-only">Usar configuración</span>
                         <span
                           aria-hidden="true"
                           className={`${
-                            notifications ? "translate-x-5" : "translate-x-0"
+                            usuario.notifications === "1"
+                              ? "translate-x-5"
+                              : "translate-x-0"
                           } pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}
                         />
                       </button>
@@ -303,17 +366,18 @@ export default function Profile() {
                           <button
                             type="button"
                             onClick={() =>
-                              setEmailNotifications(!emailnotifications)
+                              handleNotificationChange("emailnotifications")
                             }
                             className={`${
-                              emailnotifications ? "bg-black" : "bg-gray-200"
+                              usuario.emailnotifications === "1"
+                                ? "bg-black"
+                                : "bg-gray-200"
                             } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none`}
                           >
-                            <span className="sr-only">Usar configuración</span>
                             <span
                               aria-hidden="true"
                               className={`${
-                                emailnotifications
+                                usuario.emailnotifications === "1"
                                   ? "translate-x-5"
                                   : "translate-x-0"
                               } pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}

@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { FaUser } from "react-icons/fa";
 import { HiMenu } from "react-icons/hi";
 import { IoSearch } from "react-icons/io5";
-import { IoSettingsOutline } from "react-icons/io5";
+import { IoNotificationsOutline } from "react-icons/io5";
 
 const Header = ({ onToggleSidebar }) => {
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ const Header = ({ onToggleSidebar }) => {
           </div>
         </form>
         <button className="hidden md:flex text-gray-600 hover:text-gray-900">
-          <IoSettingsOutline className="h-6 w-6" />
+          <IoNotificationsOutline className="h-6 w-6" />
         </button>
         <div className="relative" ref={userMenuRef}>
           <button
