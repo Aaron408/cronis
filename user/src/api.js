@@ -9,6 +9,7 @@ export const AuthApi = axios.create({
   baseURL: "http://localhost:5000",
   headers: {
     Authorization: `Bearer ${getToken()}`,
+    'Access-Control-Allow-Origin': '*',
   },
 });
 
@@ -16,6 +17,7 @@ export const UsersApi = axios.create({
   baseURL: "http://localhost:5001",
   headers: {
     Authorization: `Bearer ${getToken()}`,
+    'Access-Control-Allow-Origin': '*',
   },
 });
 
@@ -23,6 +25,7 @@ export const activityApi = axios.create({
   baseURL: "http://localhost:5002",
   headers: {
     Authorization: `Bearer ${getToken()}`,
+    'Access-Control-Allow-Origin': '*',
   },
 });
 
@@ -30,6 +33,7 @@ export const paymentApi = axios.create({
   baseURL: "http://localhost:5003",
   headers: {
     Authorization: `Bearer ${getToken()}`,
+    'Access-Control-Allow-Origin': '*',
   },
 });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UsersApi } from "../../api";
+import { toast } from "react-toastify";
 
 // Icons
 import { IoCameraOutline } from "react-icons/io5";
@@ -17,7 +18,19 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [saveChangues, setSaveChangues] = useState(false);
   const [usuario, setUsuario] = useState({
+    name: "",
+    google_id: "",
+    email: "",
+    biography: "",
+    profile_picture_url: "",
+    notifications: "1",
+    emailnotifications: "1",
+    start_time: "",
+    end_time: "",
+  });
+  const [usuarioCopy, setUsuarioCopy] = useState({
     name: "",
     google_id: "",
     email: "",
@@ -32,7 +45,9 @@ export default function Profile() {
   const userData = async () => {
     try {
       const response = await UsersApi.get("/api/userData");
-      setUsuario(response.data);
+      const data = response.data;
+      setUsuario(data);
+      setUsuarioCopy(data);
     } catch (error) {
       console.error("Error al obtener los datos del usuario", error);
     }
@@ -42,29 +57,65 @@ export default function Profile() {
     userData();
   }, []);
 
+  useEffect(() => {
+    console.log(usuarioCopy);
+  }, [usuarioCopy]);
+
+  useEffect(() => {
+    if ((usuario != usuarioCopy) || (currentPassword != "" || newPassword != "" || repeatPassword != "")) {
+      setSaveChangues(true);
+    } else {
+      setSaveChangues(false);
+    }
+  }, [usuarioCopy, currentPassword, newPassword, repeatPassword]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setUsuario((prevState) => ({
+    setUsuarioCopy((prevState) => ({
       ...prevState,
       [name]: value,
     }));
   };
 
   const handleNotificationChange = (name) => {
-    setUsuario((prevState) => ({
+    setUsuarioCopy((prevState) => ({
       ...prevState,
       [name]: prevState[name] === "1" ? "0" : "1",
     }));
   };
 
-  const handleSubmit = (e) => {
+   const handleSubmit = (e) => {
     e.preventDefault();
 
-    UsersApi.put("/api/usuario", userData)
+    let updateData = { ...usuarioCopy };
+
+    if (currentPassword !== "" || newPassword !== "" || repeatPassword !== "") {
+      if (currentPassword === "" || newPassword === "" || repeatPassword === "") {
+        return toast.error("Debes llenar correctamente el formulario de actualización de contraseña.");
+      } else if (newPassword !== repeatPassword) {
+        return toast.error("La nueva contraseña no coincide, inténtalo de nuevo.");
+      } else {
+        updateData.currentPassword = currentPassword;
+        updateData.newPassword = newPassword;
+      }
+    }
+
+    UsersApi.post("/api/updateUser", {
+      updateData: updateData,
+    })
       .then((response) => {
-        console.log("Datos actualizados con éxito:", response.data);
+        toast.success("Datos actualizados correctamente!");
+        setCurrentPassword("");
+        setNewPassword("");
+        setRepeatPassword("");
+        userData();
       })
       .catch((error) => {
+        if (error.response && error.response.status === 400) {
+          toast.error("Contraseña actual incorrecta. Por favor, inténtalo de nuevo.");
+        } else {
+          toast.error("Error al actualizar los datos. Intenta nuevamente.");
+        }
         console.error("Error al actualizar los datos:", error);
       });
   };
@@ -89,7 +140,7 @@ export default function Profile() {
       <div className="grid gap-6 md:grid-cols-[300px_1fr] max-w-full">
         <div className="space-y-6">
           <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-xl font-semibold">{usuario.name}</h2>
+            <h2 className="text-xl font-semibold">{usuarioCopy.name}</h2>
             <p className="text-sm text-gray-500">Desarrollador de Software</p>
             <div className="mt-6 flex flex-col items-center">
               <div className="w-32 h-32 bg-gray-200 rounded-full mb-4 flex items-center justify-center">
@@ -177,7 +228,7 @@ export default function Profile() {
                         name="name"
                         placeholder="Nombre completo"
                         disabled={true}
-                        value={usuario.name}
+                        value={usuarioCopy.name}
                         className="bg-gray-200 text-gray-400 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
                       />
                     </div>
@@ -194,7 +245,7 @@ export default function Profile() {
                         name="email"
                         placeholder="juan.doe@ejemplo.com"
                         disabled={true}
-                        value={usuario.email}
+                        value={usuarioCopy.email}
                         className="bg-gray-200 text-gray-400 text-gray-400 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
                       />
                     </div>
@@ -211,7 +262,9 @@ export default function Profile() {
                         rows={1}
                         placeholder="Cuéntanos un poco sobre ti..."
                         value={
-                          usuario.biography == null ? "" : usuario.biography
+                          usuarioCopy.biography == null
+                            ? ""
+                            : usuarioCopy.biography
                         }
                         onChange={handleChange}
                         className="text-gray-600 mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
@@ -235,7 +288,7 @@ export default function Profile() {
                           type="time"
                           id="start_time"
                           name="start_time"
-                          value={usuario.start_time}
+                          value={usuarioCopy.start_time}
                           onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm pr-10"
                         />
@@ -254,7 +307,7 @@ export default function Profile() {
                           type="time"
                           id="end_time"
                           name="end_time"
-                          value={usuario.end_time}
+                          value={usuarioCopy.end_time}
                           onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm pr-10"
                         />
@@ -290,7 +343,7 @@ export default function Profile() {
                         />
                       </div>
                       <input
-                        type={showPassword ? "text" : "password"}
+                        type="password"
                         id="current-password"
                         name="current-password"
                         placeholder="Escribe tu contraseña actual"
@@ -390,7 +443,7 @@ export default function Profile() {
                           handleNotificationChange("notifications")
                         }
                         className={`${
-                          usuario.notifications === "1"
+                          usuarioCopy.notifications === "1"
                             ? "bg-black"
                             : "bg-gray-200"
                         } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none`}
@@ -398,7 +451,7 @@ export default function Profile() {
                         <span
                           aria-hidden="true"
                           className={`${
-                            usuario.notifications === "1"
+                            usuarioCopy.notifications === "1"
                               ? "translate-x-5"
                               : "translate-x-0"
                           } pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}
@@ -417,7 +470,7 @@ export default function Profile() {
                               handleNotificationChange("emailnotifications")
                             }
                             className={`${
-                              usuario.emailnotifications === "1"
+                              usuarioCopy.emailnotifications === "1"
                                 ? "bg-black"
                                 : "bg-gray-200"
                             } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none`}
@@ -425,7 +478,7 @@ export default function Profile() {
                             <span
                               aria-hidden="true"
                               className={`${
-                                usuario.emailnotifications === "1"
+                                usuarioCopy.emailnotifications === "1"
                                   ? "translate-x-5"
                                   : "translate-x-0"
                               } pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}
@@ -447,7 +500,10 @@ export default function Profile() {
             <div className="px-6 pb-4 flex justify-start">
               <button
                 type="button"
-                className="font-semibold px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800"
+                onClick={handleSubmit}
+                className={`${
+                  saveChangues == false && "hidden"
+                } font-semibold px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800`}
               >
                 Guardar cambios
               </button>
