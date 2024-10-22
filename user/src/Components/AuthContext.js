@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext } from "react";
 import { Navigate, Outlet, useNavigate } from "react-router-dom";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { jwtDecode } from "jwt-decode";
 
@@ -18,11 +17,21 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, rememberMe) => {
     try {
-      const response = await AuthApi.post("/api/login", {
-        email,
-        password,
-        rememberMe,
-      });
+      const response = await AuthApi.post(
+        "/api/login",
+        {
+          email,
+          password,
+          rememberMe,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*", // CORS header
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS", // Allowed methods
+          },
+        }
+      );
       const { name, type, email: userEmail, token } = response.data;
       const userData = { name, type, email: userEmail, token };
       setUser(userData);
@@ -52,7 +61,6 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     const userData = JSON.parse(localStorage.getItem("cronisUsuario"));
     const session_token = userData.token;
-    console.log(session_token);
 
     try {
       const response = await AuthApi.post("/api/logout", {

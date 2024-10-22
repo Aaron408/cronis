@@ -105,9 +105,7 @@ export default function Profile() {
     })
       .then((response) => {
         toast.success("Datos actualizados correctamente!");
-        setCurrentPassword("");
-        setNewPassword("");
-        setRepeatPassword("");
+        cleanForm();
         userData();
       })
       .catch((error) => {
@@ -119,6 +117,25 @@ export default function Profile() {
         console.error("Error al actualizar los datos:", error);
       });
   };
+
+  const cleanForm = () =>{
+    setCurrentPassword("");
+    setNewPassword("");
+    setRepeatPassword("");
+    setUsuarioCopy({
+        name: "",
+        google_id: "",
+        email: "",
+        biography: "",
+        profile_picture_url: "",
+        notifications: "1",
+        emailnotifications: "1",
+        start_time: "",
+        end_time: "",
+    });
+    setShowPassword(false);
+    setSaveChangues(false);
+  }
 
   return (
     <div className="container mx-auto py-5 md:py-10 px-1.5 md:px-14 overflow-x-hidden">
