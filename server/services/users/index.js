@@ -1,14 +1,12 @@
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
-const axios = require("axios");
 const crypto = require("crypto");
 
 require("dotenv").config();
 
-const jwt = require("jsonwebtoken");
 const app = express();
-const PORT = process.env.AUTH_PORT || 5000;
+const PORT = process.env.USER_PORT || 5001;
 
 app.use(express.json());
 
@@ -20,16 +18,6 @@ app.use(
     credentials: true,
   })
 );
-
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  next();
-});
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -48,296 +36,134 @@ db.connect((err) => {
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("Auth service running!");
-});
+//------------- TOKEN VERIFICATION ----------------//
 
-app.get("/datos", (req, res) => {
-  const query = `
-      SELECT * FROM prueba;
-    `;
-  db.query(query, (err, result) => {
-    if (err) {
-      res.status(500).json({ error: "Consulta no procesada" });
-    } else {
-      res.status(200).json(result);
+const verifyToken = (req, res, next) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Acceso denegado. Token no proporcionado." });
+  }
+
+  db.query(
+    "SELECT * FROM session_token WHERE token = ?",
+    [token],
+    (error, session) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al verificar el token." });
+      }
+
+      if (session.length === 0) {
+        return res
+          .status(401)
+          .json({ message: "Token inválido o no encontrado." });
+      }
+
+      // Verifica si el token ha expirado
+      const sessionData = session[0];
+      const now = new Date();
+      if (new Date(sessionData.expires_date) < now) {
+        return res.status(401).json({ message: "Token ha expirado." });
+      }
+
+      // Si todo está bien, pasa al siguiente middleware
+      req.user = { id: sessionData.user_id };
+      next();
     }
-  });
-});
-
-//----------------LOGIN PAGE-------------------//
-
-//Normal Login
-
-const generateToken = (user, expiresIn) => {
-  const payload = {
-    userId: user.id,
-    email: user.email,
-  };
-
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  );
 };
 
-const saveToken = (userId, token, expiresAt) => {
-  const query =
-    "INSERT INTO session_token (user_id, token, expires_date) VALUES (?, ?, ?)";
+//----------------- PROFILE PAGE -----------------//
 
-  db.query(query, [userId, token, expiresAt], (err, results) => {
-    if (err) {
-      console.error("Error saving token to the database", err);
+app.get("/api/userData", verifyToken, (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
+    [userId],
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos del usuario" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.status(200).json(results[0]);
     }
-  });
-};
-
-app.post("/api/login", (req, res) => {
-  const { email, password, rememberMe } = req.body;
-
-  // Hash the password using MD5
-  const hashedPassword = crypto
-    .createHash("md5")
-    .update(password)
-    .digest("hex");
-
-  const query = "SELECT * FROM users WHERE email = ? AND password = ?";
-  db.query(query, [email, hashedPassword], (err, results) => {
-    if (err) {
-      console.error("Database query error:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    if (results.length == 0) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-
-    const user = results[0];
-    const expiresIn = rememberMe ? "30d" : "1d";
-    const token = generateToken(user, expiresIn);
-
-    const expiresAt = new Date(
-      Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000
-    );
-    saveToken(user.id, token, expiresAt);
-
-    res.json({
-      name: user.name,
-      type: user.type,
-      email: user.email,
-      token: token,
-    });
-  });
+  );
 });
 
-app.post("/api/logout", (req, res) => {
-  const { session_token } = req.body;
-  const token = session_token;
-  const query = `DELETE FROM session_token WHERE token = ?`;
+app.post("/api/updateUser", verifyToken, (req, res) => {
+  const userId = req.user.id;
+  const { updateData } = req.body;
+  const currentPassword = updateData.currentPassword;
+  const newPassword = updateData.newPassword;
 
-  db.query(query, token, (err, results) => {
-    if (err) {
-      console.error("Database query error:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    } else {
-      return res
-        .status(200)
-        .json({ message: "Token eliminado exitosamente!." });
-    }
-  });
-});
+  if (currentPassword && newPassword) {
+    const hashedPassword = crypto
+      .createHash("md5")
+      .update(currentPassword)
+      .digest("hex");
 
-//Gogle Auth
-app.post("/api/auth/google", async (req, res) => {
-  const { idToken } = req.body;
+    const selectPasswordQuery = `SELECT password FROM users WHERE id = ?`;
 
-  try {
-    const ticket = await verifyGoogleToken(idToken);
-    const { sub, name, email, picture, given_name } = ticket;
-
-    const queryCheckUser = `
-        SELECT * 
-        FROM users 
-        WHERE google_id = ?
-      `;
-
-    // Verifica si el usuario ya existe
-    db.query(queryCheckUser, [sub], async (err, results) => {
+    db.query(selectPasswordQuery, userId, (err, results) => {
       if (err) {
         console.error("Database query error:", err);
-        return res.status(500).json({ error: "Database error" });
-      }
-
-      if (results.length > 0) {
-        const user = results[0];
-
-        const sessionToken = generateToken30Days(user);
-        saveTokenFor30Days(user.id, sessionToken, (err) => {
-          if (err) {
-            return res
-              .status(500)
-              .json({ message: "Error al guardar el token de sesión." });
-          }
-        });
-        return res.status(200).json({
-          name: user.name,
-          type: user.type,
-          email: user.email,
-          token: sessionToken,
-        });
+        return res.status(500).json({ error: "Internal server error" });
       } else {
-        // Si no existe un usuario con el google_id, verificar si hay un usuario con el correo
-        const queryCheckUserByEmail = `
-        SELECT * 
-        FROM users 
-        WHERE email = ?
-    `;
+        if (results.length > 0 && hashedPassword === results[0].password) {
+          const hashedNewPassword = crypto
+            .createHash("md5")
+            .update(newPassword)
+            .digest("hex");
 
-        db.query(queryCheckUserByEmail, [email], (err, emailResults) => {
-          if (err) {
-            console.error("Database query error:", err);
-            return res.status(500).json({ error: "Database error" });
-          }
+          // Eliminar las contraseñas de updateData para construir la consulta de actualización
+          delete updateData.currentPassword;
+          delete updateData.newPassword;
 
-          if (emailResults.length > 0) {
-            // Si existe un usuario con el correo, actualizar su google_id
-            const user = emailResults[0];
-            const updateGoogleIdQuery = `
-                UPDATE users 
-                SET google_id = ?, profile_picture_url = ?
-                WHERE id = ?
-            `;
+          // Añadir la nueva contraseña al objeto updateData
+          updateData.password = hashedNewPassword;
 
-            db.query(updateGoogleIdQuery, [sub, picture, user.id], (err) => {
-              if (err) {
-                console.error("Error updating google_id:", err);
-                return res.status(500).json({ error: "Error updating user" });
-              }
+          // Construir la consulta de actualización dinámica
+          const updateQuery = `UPDATE users SET ? WHERE id = ?`;
 
-              // Generar token y devolver datos
-              const sessionToken = generateToken30Days({
-                id: user.id,
-                email: user.email,
-              });
-
-              saveTokenFor30Days(user.id, sessionToken, (err) => {
-                if (err) {
-                  return res
-                    .status(500)
-                    .json({ message: "Error al guardar el token de sesión." });
-                }
-              });
-
-              return res.status(200).json({
-                name: user.name,
-                type: user.type,
-                email: user.email,
-                token: sessionToken,
-              });
-            });
-          } else {
-            // Si no existe, insertar nuevo usuario
-            const newUserQuery = `
-                INSERT INTO users (google_id, name, email, email_verified, profile_picture_url, given_name, suscription_plan, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-
-            const newUser = {
-              google_id: sub,
-              name: name,
-              email: email,
-              email_verified: true,
-              profile_picture_url: picture,
-              given_name: given_name,
-              suscription_plan: 1,
-              status: 1,
-            };
-
-            db.query(
-              newUserQuery,
-              [
-                newUser.google_id,
-                newUser.name,
-                newUser.email,
-                newUser.email_verified,
-                newUser.profile_picture_url,
-                newUser.given_name,
-                newUser.suscription_plan,
-                newUser.status,
-              ],
-              (err, insertResult) => {
-                if (err) {
-                  console.error("Error inserting new user:", err);
-                  return res
-                    .status(500)
-                    .json({ error: "Error creating new user" });
-                }
-
-                const sessionToken = generateToken30Days({
-                  id: insertResult.insertId,
-                  email: newUser.email,
-                });
-
-                saveTokenFor30Days(
-                  insertResult.insertId,
-                  sessionToken,
-                  (err) => {
-                    if (err) {
-                      return res.status(500).json({
-                        message: "Error al guardar el token de sesión.",
-                      });
-                    }
-                  }
-                );
-
-                return res.status(201).json({
-                  name: newUser.name,
-                  type: "1",
-                  email: newUser.email,
-                  token: sessionToken,
-                });
-              }
-            );
-          }
-        });
+          db.query(updateQuery, [updateData, userId], (err, result) => {
+            if (err) {
+              console.error("Error updating user:", err);
+              return res.status(500).json({ error: "Failed to update user" });
+            }
+            return res
+              .status(200)
+              .json({ message: "User updated successfully" });
+          });
+        } else {
+          // Las contraseñas no coinciden
+          return res.status(400).json({ error: "Incorrect current password" });
+        }
       }
     });
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    return res.status(401).json({ error: "Invalid token" });
+  } else {
+    const updateQuery = `UPDATE users SET ? WHERE id = ?`;
+
+    db.query(updateQuery, [updateData, userId], (err, result) => {
+      if (err) {
+        console.error("Error updating user:", err);
+        return res.status(500).json({ error: "Failed to update user" });
+      }
+      return res.status(200).json({ message: "User updated successfully" });
+    });
   }
 });
 
-// Función para generar el token JWT con duración de 1 mes
-const generateToken30Days = (user) => {
-  const payload = {
-    userId: user.id,
-    email: user.email,
-  };
-
-  // Generar el token con una duración de 30 días
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "30d" });
-  return token;
-};
-
-const saveTokenFor30Days = (userId, token) => {
-  // Consulta para guardar el token en la base de datos
-  const query =
-    "INSERT INTO session_token (user_id, token, expires_date) VALUES (?, ?, ?)";
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Fecha de expiración a 30 días
-
-  db.query(query, [userId, token, expiresAt], (err, results) => {
-    if (err) {
-      console.error("Error al guardar el token en la base de datos", err);
-    }
-  });
-};
-
-// Función para verificar el token de Google
-const verifyGoogleToken = async (token) => {
-  const response = await axios.get(
-    `https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${token}`
-  );
-  return response.data;
-};
-
 // Levantar el servidor
 app.listen(PORT, () => {
-  console.log(`Auth service running on port ${PORT}`);
+  console.log(`Users service running on port ${PORT}`);
 });
