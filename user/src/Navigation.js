@@ -1,11 +1,15 @@
 import React, {useContext} from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
-//Pages
+//User Pages
 import Login from "./Pages/Login";
 import SingIn from "./Pages/SingIn";
 import Home from "./Pages/Users/Home";
 import Profile from "./Pages/Users/Profile";
+
+//Admin Pages
+import Dashboard from "./Pages/Admin/Dashboard";
+import Users from "./Pages/Admin/UsersCrud";
 
 import { AuthContext } from "./Components/AuthContext";
 import { PrivateRoute } from "./Components/AuthContext";
@@ -30,6 +34,10 @@ const Navigation = () => {
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />
         <Route path="/profile" element={<Profile />} />
+      </Route>
+      <Route element={<PrivateRoute allowedRoles={["0"]} roleRedirects={roleRedirects} />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/users" element={<Users />} />
       </Route>
     </Routes>
   );

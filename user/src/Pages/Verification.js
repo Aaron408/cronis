@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from 'react-toastify';
-import axios from 'axios';
 
 import { AuthApi } from "../api";
 
@@ -9,7 +8,7 @@ export default function VerificationCode() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(180); // 3 minutos de cronometro
   const inputs = useRef([]);
   const timerRef = useRef(null);
   
@@ -116,7 +115,7 @@ export default function VerificationCode() {
         toast.success('Código de verificación reenviado');
         setCode(["", "", "", "", "", ""]);
         inputs.current[0]?.focus();
-        startTimer(); // Restart the timer when resending the code
+        startTimer(); // Reiniciar el cronometro cuando se reenvíe código de verificación
       } else {
         toast.error('Error al reenviar el código');
       }

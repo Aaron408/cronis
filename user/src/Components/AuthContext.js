@@ -27,8 +27,8 @@ export const AuthProvider = ({ children }) => {
         {
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*", // CORS header
-            "Access-Control-Allow-Methods": "POST, GET, OPTIONS", // Allowed methods
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
           },
         }
       );
@@ -97,12 +97,12 @@ export const AuthProvider = ({ children }) => {
 
       if (response.status === 200 || response.status === 201) {
         // Almacena los datos de usuario directamente desde response.data
-        setUser(response.data); // Actualizar el estado
+        setUser(response.data);
         localStorage.setItem("cronisUsuario", JSON.stringify(response.data)); // Guardar en localStorage
 
         toast.success("¡Bienvenido!");
 
-        // Navegar dependiendo del tipo de usuario usando response.data.tipo en lugar de user.tipo
+        // Navegar dependiendo del tipo de usuario
         if (tipo === "1") {
           navigate("/home");
         } else if (tipo === "0") {
