@@ -9,7 +9,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {
   const navigate = useNavigate();
-  const location = useLocation(); // Obtén la ruta actual
+  const location = useLocation();
   const { logout } = useContext(AuthContext);
   const sidebarRef = useRef(null);
 

@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import { AuthContext } from "../Components/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { FaSearch, FaChevronDown } from "react-icons/fa";
 import { IoNotificationsOutline } from "react-icons/io5";
 import { HiMenu } from "react-icons/hi";
 import { UsersApi } from "../api";
+import { toast } from "react-toastify";
 
 export default function AdminHeader({ toggleSidebar }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useContext(AuthContext);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [usuario, setUsuario] = useState({
@@ -26,6 +28,7 @@ export default function AdminHeader({ toggleSidebar }) {
       setUsuario(data);
     } catch (error) {
       console.error("Error al obtener los datos del usuario", error);
+      toast.error("Error al obtener los datos del usuario");
     }
   };
 
