@@ -3,8 +3,8 @@ import { FiPlus } from "react-icons/fi";
 import { MdOutlineKeyboardArrowLeft } from "react-icons/md";
 
 //Pages
-import Header from "../../Components/Header";
-import SideBar from "../../Components/SideBar";
+import Header from "../../Components/User/Header";
+import SideBar from "../../Components/User/SideBar";
 
 export default function Home() {
   const [date, setDate] = useState(new Date());

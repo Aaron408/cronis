@@ -4,7 +4,7 @@ import { BsBarChartFill } from "react-icons/bs";
 import { FiFileText } from "react-icons/fi";
 import { IoMdSettings } from "react-icons/io";
 import { IoLogOut } from "react-icons/io5";
-import { AuthContext } from "./AuthContext";
+import { AuthContext } from "../AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {

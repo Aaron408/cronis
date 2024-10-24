@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import React, { useState, useEffect, useRef, useContext } from "react";
-import { AuthContext } from "../Components/AuthContext";
+import { AuthContext } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 
 import { FaUser } from "react-icons/fa";

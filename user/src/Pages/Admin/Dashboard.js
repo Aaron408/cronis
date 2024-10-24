@@ -1,8 +1,8 @@
 import React, { useState, useContext } from "react";
 
 //Pages
-import AdminHeader from "../../Components/AdminHeader";
-import AdminSideBar from "../../Components/AdminSideBar";
+import AdminHeader from "../../Components/Admin/AdminHeader";
+import AdminSideBar from "../../Components/Admin/AdminSideBar";
 
 const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

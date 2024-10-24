@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
-import { AuthContext } from "../Components/AuthContext";
+import { AuthContext } from "../AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { FaSearch, FaChevronDown } from "react-icons/fa";
 import { IoNotificationsOutline } from "react-icons/io5";
 import { HiMenu } from "react-icons/hi";
-import { UsersApi } from "../api";
+import { UsersApi } from "../../api";
 import { toast } from "react-toastify";
 
 export default function AdminHeader({ toggleSidebar }) {
