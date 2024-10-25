@@ -38,7 +38,7 @@ export default function SignUp() {
       return;
     }
 
-    // Validar formato de correo (solo Gmail y Hotmail)
+    // Validar formato de correo (solo Gmail, Hotmail e institucionales de la UTEQ)
     const emailRegex =
       /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com|uteq.edu.mx)$/;
     if (!emailRegex.test(email)) {
@@ -48,18 +48,17 @@ export default function SignUp() {
 
     try {
       // Verificar si ya existe una cuenta con el correo proporcionado
-      const checkUserResponse = await AuthApi.post("/api/checkEmail", {
-        email,
-      });
+      const checkUserResponse = await AuthApi.get(
+        `/api/checkEmail?email=${encodeURIComponent(email)}`
+      );
 
-      // Aquí no necesitas llamar a checkUserResponse.json(), ya que Axios ya maneja esto
       if (checkUserResponse.data.exists) {
-        // Si ya existe una cuenta con este correo
+        // Si ya existe una cuenta con este correo se avisa y se detiene el proceso
         toast.error("Ya existe una cuenta con este correo electrónico.");
         return;
       }
 
-      // Si no existe una cuenta, proceder con el envío del código de verificación
+      // Si no existe una cuenta se envía el código de verificación para la creación de una.
       const response = await AuthApi.post("/api/sendVerificationCode", {
         email,
       });
@@ -68,7 +67,6 @@ export default function SignUp() {
         toast.success("El código de verificación ha sido enviado a tu correo.");
         const nombre = `${firstName} ${lastNameP} ${lastNameM}`;
 
-        // Navegar al componente VerificationCode pasando todos los datos del formulario
         navigate("/verification", {
           state: { nombre, email, password },
         });
@@ -77,7 +75,7 @@ export default function SignUp() {
           response.data.message ||
             "Hubo un error al enviar el código de verificación."
         );
-      } 
+      }
     } catch (error) {
       console.error("Error de conexión:", error);
       toast.error("Error de conexión. Inténtalo nuevamente.");

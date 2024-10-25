@@ -40,7 +40,7 @@ function GlobalFilter({
           setValue(e.target.value);
           onChange(e.target.value);
         }}
-        placeholder={`${count} records...`}
+        placeholder={`${count} registros...`}
       />
     </label>
   );
@@ -72,7 +72,7 @@ export function SelectColumnFilter({
           setFilter(e.target.value || undefined);
         }}
       >
-        <option value="">All</option>
+        <option value="">Todos</option>
         {options.map((option, i) => (
           <option key={i} value={option}>
             {option}
@@ -101,14 +101,17 @@ export function StatusPill({ value }) {
 }
 
 export function AvatarCell({ value, column, row }) {
+  const imgUrl = row.original[column.imgAccessor];
+
   return (
     <div className="flex items-center">
       <div className="flex-shrink-0 h-10 w-10">
-        <img
-          className="h-10 w-10 rounded-full"
-          src={row.original[column.imgAccessor]}
-          alt=""
-        />
+        {imgUrl ? (
+          <img className="h-10 w-10 rounded-full" src={imgUrl} alt="" />
+        ) : (
+          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+          </div>
+        )}
       </div>
       <div className="ml-4">
         <div className="text-sm font-medium text-gray-900">{value}</div>
@@ -127,10 +130,7 @@ function Table({ columns, data }) {
     getTableBodyProps,
     headerGroups,
     prepareRow,
-    page, // Instead of using 'rows', we'll use page,
-    // which has only the rows for the active page
-
-    // The rest of these things are super handy, too ;)
+    page,
     canPreviousPage,
     canNextPage,
     pageOptions,
@@ -147,14 +147,40 @@ function Table({ columns, data }) {
     {
       columns,
       data,
+      // Añadimos un filtro global personalizado
+      globalFilter: (rows, columnIds, filterValue) => {
+        if (!filterValue) return rows;
+
+        return rows.filter((row) => {
+          return columnIds.some((columnId) => {
+            const column = columns.find(col => col.accessor === columnId);
+            const value = row.values[columnId];
+
+            // Comprobamos si es la columna que contiene el email
+            if (column && column.emailAccessor) {
+              const email = row.original[column.emailAccessor];
+              if (email && email.toLowerCase().includes(filterValue.toLowerCase())) {
+                return true;
+              }
+            }
+
+            // Para el resto de las columnas, hacemos la búsqueda normal
+            if (typeof value === 'string' && value.toLowerCase().includes(filterValue.toLowerCase())) {
+              return true;
+            }
+
+            return false;
+          });
+        });
+      },
     },
-    useFilters, // useFilters!
+    useFilters,
     useGlobalFilter,
     useSortBy,
-    usePagination // new
+    usePagination
   );
 
-  // Render the UI for your table
+  // Generar la tabla
   return (
     <>
       <div className="sm:flex sm:gap-x-2">
@@ -173,7 +199,7 @@ function Table({ columns, data }) {
           )
         )}
       </div>
-      {/* table */}
+      {/* Tabla */}
       <div className="mt-4 flex flex-col">
         <div className="-my-2 overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-8">
           <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
@@ -269,7 +295,7 @@ function Table({ columns, data }) {
             <label>
               <span className="sr-only">Items Per Page</span>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm px-2 py-1"
                 value={state.pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));

@@ -16,47 +16,49 @@ export const AuthProvider = ({ children }) => {
   });
 
   const login = async (email, password, rememberMe) => {
-    try {
-      const response = await AuthApi.post(
-        "/api/login",
-        {
+  try {
+    const response = await AuthApi.get(
+      "/api/login", 
+      {
+        params: {
           email,
           password,
-          rememberMe,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-          },
+          rememberMe
         }
-      );
-      const { name, type, email: userEmail, token } = response.data;
-      const userData = { name, type, email: userEmail, token };
-      setUser(userData);
-      localStorage.setItem("cronisUsuario", JSON.stringify(userData));
-      toast.success("¡Inicio de sesión exitoso!");
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+        },
+      }
+    );
+    
+    const { name, type, email: userEmail, token } = response.data;
+    const userData = { name, type, email: userEmail, token };
+    setUser(userData);
+    localStorage.setItem("cronisUsuario", JSON.stringify(userData));
+    toast.success("¡Inicio de sesión exitoso!");
 
-      // Redirige según el tipo de usuario
-      if (type === "1") {
-        navigate("/home");
-      } else if (type === "0") {
-        navigate("/dashboard");
-      }
-    } catch (error) {
-      // Manejo de errores
-      console.error("Error during login:", error);
-      if (error.response && error.response.status === 401) {
-        toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
-      } else if (error.response && error.response.status === 402) {
-        toast.error("Cuenta existente sin registro de google!");
-      } else {
-        toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
-      }
-      throw error;
+    // Redirige según el tipo de usuario
+    if (type === "1") {
+      navigate("/home");
+    } else if (type === "0") {
+      navigate("/dashboard");
     }
-  };
+  } catch (error) {
+    console.error("Error during login:", error);
+    if (error.response && error.response.status === 401) {
+      toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
+    } else if (error.response && error.response.status === 402) {
+      toast.error("Cuenta existente sin registro de google!");
+    } else {
+      toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
+    }
+    throw error;
+  }
+};
 
   const logout = async () => {
     const userData = JSON.parse(localStorage.getItem("cronisUsuario"));

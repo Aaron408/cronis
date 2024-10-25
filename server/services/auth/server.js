@@ -15,11 +15,13 @@ require("dotenv").config({ path: "../../.env" }); // Cargar desde la raíz del p
 app.use(express.json());
 
 // Activar CORS
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -309,8 +311,8 @@ const verifyGoogleToken = async (token) => {
 
 //---------------Register Page----------------//
 
-app.post("/api/checkEmail", (req, res) => {
-  const { email } = req.body;
+app.get("/api/checkEmail", (req, res) => {
+  const { email } = req.query;
 
   db.query(
     "SELECT COUNT(*) as count FROM users WHERE email = ?",

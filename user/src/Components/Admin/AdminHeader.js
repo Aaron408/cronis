@@ -69,7 +69,13 @@ export default function AdminHeader({ toggleSidebar }) {
           >
             <HiMenu className="h-7 w-7 mt-1" />
           </button>
-          <h1 className="hidden md:flex text-2xl font-bold">Dashboard</h1>
+          <h1 className="hidden md:flex text-2xl font-bold">
+            {location.pathname == "/dashboard"
+              ? "Dashboard"
+              : location.pathname == "/users"
+              ? "Users"
+              : "No se sabe aún"}
+          </h1>
         </div>
         <div className="flex items-center">
           <form className="hidden md:flex mr-3">

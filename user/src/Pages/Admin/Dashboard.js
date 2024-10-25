@@ -1,4 +1,5 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { UsersApi } from "../../api";
 
 //Pages
 import AdminHeader from "../../Components/Admin/AdminHeader";
@@ -6,14 +7,40 @@ import AdminSideBar from "../../Components/Admin/AdminSideBar";
 
 const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userStats, setUserStats] = useState({
+    totalUsers: 0,
+    currentMonthUsers: 0,
+    previousMonthUsers: 0,
+    percentageChange: "0%",
+  });
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      try {
+        const response = await UsersApi.get("/api/userStatistics");
+        setUserStats(response.data);
+      } catch (error) {
+        console.error("Error fetching user statistics:", error);
+      }
+    };
+
+    fetchUserStats();
+  }, []);
+  
+  useEffect(() => {
+    console.log(userStats);
+  }, [userStats]);
+
   return (
     <div className="flex h-screen bg-gray-100">
-      <AdminSideBar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      <AdminSideBar
+        isSidebarOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+      />
 
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
@@ -23,7 +50,7 @@ const Dashboard = () => {
           {/* Tarjetitas info */}
           <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
             {[
-              { title: "Usuario totales", value: "1,234", change: "+5%" },
+              { title: "Usuario totales", value: userStats.totalUsers, change: userStats.percentageChange >= 0 ? "+" + userStats.percentageChange + "%" : "-" + userStats.percentageChange + "%"},
               { title: "Total recaudado", value: "$12,345", change: "+12%" },
               { title: "Active activities", value: "42", change: "-2%" },
             ].map((card, index) => (

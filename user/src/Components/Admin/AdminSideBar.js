@@ -17,11 +17,11 @@ export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {
     logout();
   };
 
-  // Detectar clics fuera del sidebar
+  // Detectar clics fuera de la sidebar
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-        toggleSidebar(); // Cerrar el sidebar si se hace clic fuera de él
+        toggleSidebar(); // Cerrar el sidebar si se hace click por fuera de esta
       }
     };
 
@@ -62,7 +62,7 @@ export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {
         <div className="mt-4">
           {[
             { name: "Dashboard", icon: BsBarChartFill, route: "dashboard" },
-            { name: "Users", icon: FaUsers, route: "users" },
+            { name: "Usuarios", icon: FaUsers, route: "users" },
             { name: "Reports", icon: FiFileText, route: "reports" },
             { name: "Settings", icon: IoMdSettings, route: "settings" },
           ].map((item) => (
@@ -86,7 +86,7 @@ export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {
             className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
           >
             <IoLogOut className="w-7 h-7 mr-3" />
-            Logout
+            Cerrar sesión
           </button>
         </div>
       </div>

@@ -24,8 +24,9 @@ const Users = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await UsersApi.get('/api/users');
+        const response = await UsersApi.get("/api/users");
         setUsers(response.data);
+        console.log(response.data);
       } catch (error) {
         console.error("Error fetching users:", error);
       }
@@ -49,6 +50,7 @@ const Users = () => {
       },
       {
         Header: "Plan",
+        Filter: SelectColumnFilter,
         accessor: "suscription_plan",
       },
       {
@@ -62,9 +64,41 @@ const Users = () => {
         Filter: SelectColumnFilter,
         filter: "includes",
       },
+      {
+        Header: "Registro",
+        accessor: "register",
+      },
+      {
+        Header: "Acciones",
+        accessor: "id",
+        Cell: ({ value }) => (
+          <div className="flex justify-around">
+            <button
+              onClick={() => handleEdit(value)}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              <FaPencilAlt />
+            </button>
+            <button
+              onClick={() => handleDelete(value)}
+              className="text-red-600 hover:text-red-800"
+            >
+              <FaTrash />
+            </button>
+          </div>
+        ),
+      },
     ],
     []
   );
+
+  const handleEdit = (userId) => {
+    console.log("Edit user:", userId);
+  };
+
+  const handleDelete = (userId) => {
+    console.log("Delete user:", userId);
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
