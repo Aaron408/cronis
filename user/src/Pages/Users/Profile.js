@@ -62,7 +62,12 @@ export default function Profile() {
   }, [usuarioCopy]);
 
   useEffect(() => {
-    if ((usuario != usuarioCopy) || (currentPassword != "" || newPassword != "" || repeatPassword != "")) {
+    if (
+      usuario != usuarioCopy ||
+      currentPassword != "" ||
+      newPassword != "" ||
+      repeatPassword != ""
+    ) {
       setSaveChangues(true);
     } else {
       setSaveChangues(false);
@@ -84,16 +89,24 @@ export default function Profile() {
     }));
   };
 
-   const handleSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     let updateData = { ...usuarioCopy };
 
     if (currentPassword !== "" || newPassword !== "" || repeatPassword !== "") {
-      if (currentPassword === "" || newPassword === "" || repeatPassword === "") {
-        return toast.error("Debes llenar correctamente el formulario de actualización de contraseña.");
+      if (
+        currentPassword === "" ||
+        newPassword === "" ||
+        repeatPassword === ""
+      ) {
+        return toast.error(
+          "Debes llenar correctamente el formulario de actualización de contraseña."
+        );
       } else if (newPassword !== repeatPassword) {
-        return toast.error("La nueva contraseña no coincide, inténtalo de nuevo.");
+        return toast.error(
+          "La nueva contraseña no coincide, inténtalo de nuevo."
+        );
       } else {
         updateData.currentPassword = currentPassword;
         updateData.newPassword = newPassword;
@@ -110,7 +123,9 @@ export default function Profile() {
       })
       .catch((error) => {
         if (error.response && error.response.status === 400) {
-          toast.error("Contraseña actual incorrecta. Por favor, inténtalo de nuevo.");
+          toast.error(
+            "Contraseña actual incorrecta. Por favor, inténtalo de nuevo."
+          );
         } else {
           toast.error("Error al actualizar los datos. Intenta nuevamente.");
         }
@@ -118,24 +133,24 @@ export default function Profile() {
       });
   };
 
-  const cleanForm = () =>{
+  const cleanForm = () => {
     setCurrentPassword("");
     setNewPassword("");
     setRepeatPassword("");
     setUsuarioCopy({
-        name: "",
-        google_id: "",
-        email: "",
-        biography: "",
-        profile_picture_url: "",
-        notifications: "1",
-        emailnotifications: "1",
-        start_time: "",
-        end_time: "",
+      name: "",
+      google_id: "",
+      email: "",
+      biography: "",
+      profile_picture_url: "",
+      notifications: "1",
+      emailnotifications: "1",
+      start_time: "",
+      end_time: "",
     });
     setShowPassword(false);
     setSaveChangues(false);
-  }
+  };
 
   return (
     <div className="container mx-auto py-5 md:py-10 px-1.5 md:px-14 overflow-x-hidden">
@@ -160,8 +175,12 @@ export default function Profile() {
             <h2 className="text-xl font-semibold">{usuarioCopy.name}</h2>
             <p className="text-sm text-gray-500">Desarrollador de Software</p>
             <div className="mt-6 flex flex-col items-center">
-              <div className="w-32 h-32 bg-gray-200 rounded-full mb-4 flex items-center justify-center">
-                <FaUser className="h-16 w-16 text-gray-500" />
+              <div className="w-36 h-36 bg-gray-200 rounded-full mb-4 flex items-center justify-center overflow-hidden">
+                <img
+                  src={usuarioCopy.profile_picture_url}
+                  alt="Descripción de la imagen"
+                  className="h-full w-full object-cover"
+                />
               </div>
               <button className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
                 <IoCameraOutline className="inline-block mr-2 h-5 w-5" />

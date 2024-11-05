@@ -26,17 +26,11 @@ export const AuthProvider = ({ children }) => {
           rememberMe
         }
       },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-        },
-      }
     );
     
     const { name, type, email: userEmail, token } = response.data;
-    const userData = { name, type, email: userEmail, token };
+    console.log(response);
+    const userData = { name, type, email, token };
     setUser(userData);
     localStorage.setItem("cronisUsuario", JSON.stringify(userData));
     toast.success("¡Inicio de sesión exitoso!");
@@ -44,7 +38,7 @@ export const AuthProvider = ({ children }) => {
     // Redirige según el tipo de usuario
     if (type === "1") {
       navigate("/home");
-    } else if (type === "0") {
+    } else if (type == "0") {
       navigate("/dashboard");
     }
   } catch (error) {

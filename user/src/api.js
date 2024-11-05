@@ -10,6 +10,7 @@ export const AuthApi = axios.create({
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
@@ -18,14 +19,16 @@ export const UsersApi = axios.create({
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
-export const activityApi = axios.create({
+export const ActivitiesApi = axios.create({
   baseURL: "http://localhost:5002",
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
@@ -34,6 +37,7 @@ export const paymentApi = axios.create({
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
@@ -72,5 +76,5 @@ const setupInterceptors = (apiInstance) => {
 
 setupInterceptors(AuthApi);
 setupInterceptors(UsersApi);
-setupInterceptors(activityApi);
+setupInterceptors(ActivitiesApi);
 setupInterceptors(paymentApi);

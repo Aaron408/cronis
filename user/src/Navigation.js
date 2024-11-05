@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./Pages/Login";
 import SingIn from "./Pages/SingIn";
 import Home from "./Pages/Users/Home";
+import Activities from "./Pages/Users/Activities";
 import Profile from "./Pages/Users/Profile";
 
 //Admin Pages
@@ -34,6 +35,7 @@ const Navigation = () => {
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/activities" element={<Activities />} />
       </Route>
       <Route element={<PrivateRoute allowedRoles={["0"]} roleRedirects={roleRedirects} />}>
         <Route path="/dashboard" element={<Dashboard />} />
