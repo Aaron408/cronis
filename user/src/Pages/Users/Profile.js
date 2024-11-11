@@ -152,6 +152,36 @@ export default function Profile() {
     setSaveChangues(false);
   };
 
+  const updateImage = async () => {
+    try {
+
+      // const token = localStorage.getItem("authToken");
+  
+      // if (!token) {
+      //   toast.error("Token de autenticación no encontrado.");
+      //   return;
+      // }
+  
+      const response = await UsersApi.post(
+        "/api/uploadImage",
+        { image: usuarioCopy.profile_picture_url },
+        {
+          headers: {
+            // Authorization: `Bearer ${token}`, // Pass the token in the Authorization header
+          },
+        }
+      );
+  
+      const data = response.data;
+      console.log(data);
+      toast.success("Imagen actualizada correctamente!");
+    } catch (error) {
+      console.error("Error al actualizar la imagen", error);
+      toast.error("Error al actualizar la imagen. Intenta nuevamente.");
+    }
+  };  
+  
+
   return (
     <div className="container mx-auto py-5 md:py-10 px-1.5 md:px-14 overflow-x-hidden">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-start md:justify-between mb-6 space-y-2">
@@ -182,10 +212,13 @@ export default function Profile() {
                   className="h-full w-full object-cover"
                 />
               </div>
-              <button className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
-                <IoCameraOutline className="inline-block mr-2 h-5 w-5" />
-                Cambiar foto
-              </button>
+                <button 
+                onClick={updateImage}
+                className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
+                  <IoCameraOutline className="inline-block mr-2 h-5 w-5" />
+
+                  Cambiar foto
+                </button>
             </div>
           </div>
           <div className="bg-white border rounded-lg p-6">

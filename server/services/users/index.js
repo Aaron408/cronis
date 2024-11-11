@@ -163,6 +163,104 @@ app.post("/api/updateUser", verifyToken, (req, res) => {
   }
 });
 
+
+//Cambiar imagen
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = '../../../Assets/uploads';
+    // Crear el directorio si no existe
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Crear un nombre único para el archivo
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Aceptar solo imágenes
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('No es un archivo de imagen válido'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage, 
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 1024 * 1024 * 5 // 5MB
+  }
+ });
+
+ app.post('/api/uploadImage', verifyToken, upload.single('image'), (req, res) => {
+  const userId = req.user.id;
+  const newImageUrl = req.file.path;
+
+  // Paso 1: Obtener la URL de la imagen actual desde la base de datos
+  const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
+  db.query(selectQuery, [userId], (selectErr, selectResult) => {
+    if (selectErr) {
+      console.error("Error fetching current profile image:", selectErr);
+      return res.status(500).json({ error: "Failed to fetch current profile image" });
+    }
+
+    // Almacenar la URL de la imagen anterior si existe
+    const oldImageUrl = selectResult.length > 0 ? selectResult[0].profile_picture_url : null;
+
+    // Paso 2: Actualizar la base de datos con la nueva URL de la imagen
+    const updateQuery = `UPDATE users SET profile_picture_url = ? WHERE id = ?`;
+    db.query(updateQuery, [newImageUrl, userId], (updateErr, updateResult) => {
+      if (updateErr) {
+        console.error("Error updating user:", updateErr);
+        return res.status(500).json({ error: "Failed to update user" });
+      }
+
+      // Paso 3: Borrar la imagen anterior si existe y no es igual a la nueva
+      if (oldImageUrl && oldImageUrl !== newImageUrl) {
+        fs.unlink(oldImageUrl, (unlinkErr) => {
+          if (unlinkErr) {
+            console.error("Error deleting old image:", unlinkErr);
+          } else {
+            console.log("Old image deleted successfully");
+          }
+        });
+      }
+
+      return res.status(200).json({ message: "User updated successfully" });
+    });
+  });
+});
+
+app.get('/api/getUserProfileImage', verifyToken, (req, res) => {
+  const userId = req.user.id;
+  const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
+
+  db.query(selectQuery, [userId], (err, result) => {
+    if (err) {
+      console.error("Error fetching profile image:", err);
+      return res.status(500).json({ error: "Failed to fetch profile image" });
+    }
+    if (result.length > 0) {
+      const profilePictureUrl = result[0].profile_picture_url;
+      return res.status(200).json({ profilePictureUrl });
+    } else {
+      return res.status(404).json({ error: "User not found" });
+    }
+  });
+});
+
+
 // Levantar el servidor
 app.listen(PORT, () => {
   console.log(`Users service running on port ${PORT}`);
