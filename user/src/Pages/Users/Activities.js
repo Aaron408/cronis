@@ -117,7 +117,7 @@ export default function Activities() {
     e.preventDefault();
     try {
       const response = await ActivitiesApi.post("/api/addActivity", newEvent);
-      setEvents([...events, response.data]);
+      userActivities();
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error al agregar la actividad", error);

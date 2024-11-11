@@ -34,8 +34,10 @@ const Navigation = () => {
       <Route path="/verification" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <VerificationCode />} />
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />
-        <Route path="/profile" element={<Profile />} />
         <Route path="/activities" element={<Activities />} />
+      </Route>
+      <Route element={<PrivateRoute allowedRoles={["1", "0"]} roleRedirects={roleRedirects} />}>
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route element={<PrivateRoute allowedRoles={["0"]} roleRedirects={roleRedirects} />}>
         <Route path="/dashboard" element={<Dashboard />} />

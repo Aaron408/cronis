@@ -11,13 +11,7 @@ const PORT = process.env.USER_PORT || 5001;
 app.use(express.json());
 
 // Activar CORS
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -38,7 +32,7 @@ db.connect((err) => {
 
 //------------- TOKEN VERIFICATION ----------------//
 
-const verifyToken = (req, res, next) => {
+const verifyToken = (allowedTypes) => (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
 
   if (!token) {
@@ -48,7 +42,7 @@ const verifyToken = (req, res, next) => {
   }
 
   db.query(
-    "SELECT * FROM session_token WHERE token = ?",
+    `SELECT st.user_id, u.type, st.expires_date FROM session_token st JOIN users u on u.id = st.user_id WHERE token = ?`,
     [token],
     (error, session) => {
       if (error) {
@@ -63,15 +57,21 @@ const verifyToken = (req, res, next) => {
           .json({ message: "Token inválido o no encontrado." });
       }
 
-      // Verifica si el token ha expirado
       const sessionData = session[0];
       const now = new Date();
       if (new Date(sessionData.expires_date) < now) {
         return res.status(401).json({ message: "Token ha expirado." });
       }
 
+      // Verifica si el tipo de usuario está permitido
+      if (!allowedTypes.includes(sessionData.type)) {
+        return res
+          .status(403)
+          .json({ message: "Acceso denegado. Permisos insuficientes." });
+      }
+
       // Si todo está bien, pasa al siguiente middleware
-      req.user = { id: sessionData.user_id };
+      req.user = { id: sessionData.user_id, type: sessionData.type };
       next();
     }
   );
@@ -79,28 +79,7 @@ const verifyToken = (req, res, next) => {
 
 //----------------- PROFILE PAGE -----------------//
 
-app.get("/api/userData", verifyToken, (req, res) => {
-  const userId = req.user.id;
-
-  db.query(
-    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
-    [userId],
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos del usuario" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
-
-      res.status(200).json(results[0]);
-    }
-  );
-});
-
-app.post("/api/updateUser", verifyToken, (req, res) => {
+app.post("/api/updateUser", verifyToken(["1"]), (req, res) => {
   const userId = req.user.id;
   const { updateData } = req.body;
   const currentPassword = updateData.currentPassword;
@@ -161,6 +140,228 @@ app.post("/api/updateUser", verifyToken, (req, res) => {
       return res.status(200).json({ message: "User updated successfully" });
     });
   }
+});
+
+app.get("/api/userData", verifyToken(["1", "0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
+    [userId],
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos del usuario" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.status(200).json(results[0]);
+    }
+  );
+});
+
+//---------------- DASHBOARD PAGE -----------------//
+app.get("/api/adminData", verifyToken(["0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    "SELECT name, email, profile_picture_url FROM users WHERE id = ?",
+    [userId],
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos del usuario" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.status(200).json(results[0]);
+    }
+  );
+});
+
+app.get("/api/userStatistics", verifyToken(["0"]), (req, res) => {
+  const queryTotalUsers = `SELECT COUNT(*) AS total FROM users WHERE status != '2'`;
+  const queryPreviousMonthUsers = `
+    SELECT COUNT(*) AS previousMonth 
+    FROM users 
+    WHERE status = '0' 
+      AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)`;
+  const queryCurrentMonthUsers = `
+    SELECT COUNT(*) AS currentMonth 
+    FROM users 
+    WHERE status = '0' 
+      AND MONTH(register_date) = MONTH(CURDATE()) 
+      AND YEAR(register_date) = YEAR(CURDATE())`;
+
+  db.query(queryTotalUsers, (error, totalResults) => {
+    if (error)
+      return res
+        .status(500)
+        .json({ message: "Error al obtener el total de usuarios" });
+
+    db.query(queryPreviousMonthUsers, (error, previousResults) => {
+      if (error)
+        return res
+          .status(500)
+          .json({ message: "Error al obtener usuarios del mes anterior" });
+
+      db.query(queryCurrentMonthUsers, (error, currentResults) => {
+        if (error)
+          return res
+            .status(500)
+            .json({ message: "Error al obtener usuarios del mes actual" });
+
+        const total = totalResults[0].total;
+        const previousMonth = previousResults[0].previousMonth;
+        const currentMonth = currentResults[0].currentMonth;
+
+        const percentageChange =
+          previousMonth > 0
+            ? ((currentMonth - previousMonth) / previousMonth) * 100
+            : currentMonth > 0
+            ? 100
+            : 0;
+
+        res.status(200).json({
+          totalUsers: total,
+          previousMonthUsers: previousMonth,
+          currentMonthUsers: currentMonth,
+          percentageChange: percentageChange.toFixed(2),
+        });
+      });
+    });
+  });
+});
+
+app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
+  const query = `
+    WITH meses AS (
+      SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq MONTH), '%Y-%m') AS mes
+      FROM (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+            UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+            UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11) AS seqs
+    )
+    SELECT 
+        m.mes,
+        COUNT(u.id) AS total_usuarios
+    FROM 
+        meses m
+    LEFT JOIN 
+        users u ON DATE_FORMAT(u.register_date, '%Y-%m') = m.mes
+    GROUP BY 
+        m.mes
+    ORDER BY 
+        m.mes;
+  `;
+
+  db.query(query, (error, results) => {
+    if (error) {
+      console.error("Error al obtener los datos del gráfico:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al obtener los datos del gráfico" });
+    }
+    // Devuelve los datos al frontend
+    res.status(200).json({ data: results });
+  });
+});
+
+//---------------- USERS CRUD PAGE -----------------//
+app.get("/api/users", verifyToken(["0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, IFNULL(sp.name, 'N/A') AS suscription_plan, DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
+            CASE 
+              WHEN us.type = '0' THEN 'Administrador' 
+              WHEN us.type = '1' THEN 'Usuario' 
+              ELSE 'Desconocido'
+            END AS role,
+            CASE
+              WHEN us.status = '0' THEN 'Activo' 
+              WHEN us.status = '1' THEN 'Suspendido' 
+              ELSE 'Desconocido'
+            END AS status
+      FROM users us 
+      LEFT JOIN subscription_plan sp 
+      ON us.suscription_plan = sp.id
+      WHERE us.status != '2';
+      ;`,
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos de usuarios" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "No hay usuarios que mostrar" });
+      }
+
+      res.status(200).json(results);
+    }
+  );
+});
+
+app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
+  const { name, email, type, suscription_plan, subscription_start_date, subscription_end_date } = req.body;
+
+  // Validaciones para el formulario
+  if (!name || !email || (!suscription_plan && type !== "1")) {
+    return res
+      .status(400)
+      .json({ message: "Llena correctamente el formulario." });
+  }
+
+  const registerDate = new Date().toISOString().slice(0, 10); // Fecha de registro en formato 'YYYY-MM-DD'
+  
+  // Generar contraseña aleatoria
+  const password = crypto.randomBytes(8).toString('hex');
+  const hashedPassword = crypto
+      .createHash("md5")
+      .update(password)
+      .digest("hex");
+
+  // Preparar los datos para la inserción
+  const userData = [
+    name,
+    email,
+    type,
+    suscription_plan || null,
+    registerDate,
+    hashedPassword,
+  ];
+
+  // Agregar fechas de suscripción si el plan es premium (asumiendo que el ID del plan premium es "2")
+  let query = `INSERT INTO users (name, email, type, suscription_plan, register_date, password`;
+  if (suscription_plan === 2) {
+    query += `, start_suscription, end_suscription`;
+    userData.push(subscription_start_date || null, subscription_end_date || null);
+  }
+  query += `) VALUES (?, ?, ?, ?, ?, ?`;
+  if (suscription_plan === 2) {
+    query += `, ?, ?`;
+  }
+  query += `)`;
+
+  // Insertar nuevo usuario en la base de datos
+  db.query(query, userData, (error, results) => {
+    if (error) {
+      console.error("Error al agregar usuario:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al agregar el usuario a la base de datos" });
+    }
+    res.status(201).json({ 
+      message: "Usuario agregado exitosamente",
+      password: password // Enviar la contraseña sin hash al cliente
+    });
+  });
 });
 
 // Levantar el servidor
