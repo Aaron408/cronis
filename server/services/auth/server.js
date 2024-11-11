@@ -1,27 +1,20 @@
-// services/auth/server.js
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
 const axios = require("axios");
-
-const jwt = require("jsonwebtoken");
-const app = express();
-const PORT = process.env.AUTH_PORT || 5000;
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 
-require("dotenv").config({ path: "../../.env" }); // Cargar desde la raíz del proyecto
+require("dotenv").config();
+
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const app = express();
+const PORT = process.env.AUTH_PORT || 5000;
 
 app.use(express.json());
 
 // Activar CORS
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -40,7 +33,26 @@ db.connect((err) => {
   }
 });
 
-//-------------LOGIN PAGE-------------//
+app.get("/", (req, res) => {
+  res.send("Auth service running!");
+});
+
+app.get("/datos", (req, res) => {
+  const query = `
+      SELECT * FROM prueba;
+    `;
+  db.query(query, (err, result) => {
+    if (err) {
+      res.status(500).json({ error: "Consulta no procesada" });
+    } else {
+      res.status(200).json(result);
+    }
+  });
+});
+
+//----------------LOGIN PAGE-------------------//
+
+//Normal Login
 
 const generateToken = (user, expiresIn) => {
   const payload = {
@@ -62,10 +74,9 @@ const saveToken = (userId, token, expiresAt) => {
   });
 };
 
-app.post("/api/login", (req, res) => {
-  const { email, password, rememberMe } = req.body;
+app.get("/api/login", (req, res) => {
+  const { email, password, rememberMe } = req.query;
 
-  // Hash the password using MD5
   const hashedPassword = crypto
     .createHash("md5")
     .update(password)
@@ -82,11 +93,11 @@ app.post("/api/login", (req, res) => {
     }
 
     const user = results[0];
-    const expiresIn = rememberMe ? "30d" : "1d";
+    const expiresIn = rememberMe === "true" ? "30d" : "1d"; // rememberMe is a string in a GET request
     const token = generateToken(user, expiresIn);
 
     const expiresAt = new Date(
-      Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000
+      Date.now() + (rememberMe === "true" ? 30 : 1) * 24 * 60 * 60 * 1000
     );
     saveToken(user.id, token, expiresAt);
 
@@ -116,31 +127,7 @@ app.post("/api/logout", (req, res) => {
   });
 });
 
-// Función para generar el token JWT con duración de 1 mes
-const generateToken30Days = (user) => {
-  const payload = {
-    userId: user.id,
-    email: user.email,
-  };
-
-  // Generar el token con una duración de 30 días
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "30d" });
-  return token;
-};
-
-const saveTokenFor30Days = (userId, token) => {
-  // Consulta para guardar el token en la base de datos
-  const query =
-    "INSERT INTO session_token (user_id, token, expires_date) VALUES (?, ?, ?)";
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Fecha de expiración a 30 días
-
-  db.query(query, [userId, token, expiresAt], (err, results) => {
-    if (err) {
-      console.error("Error al guardar el token en la base de datos", err);
-    }
-  });
-};
-
+//Gogle Auth
 app.post("/api/auth/google", async (req, res) => {
   const { idToken } = req.body;
 
@@ -300,6 +287,31 @@ app.post("/api/auth/google", async (req, res) => {
     return res.status(401).json({ error: "Invalid token" });
   }
 });
+
+// Generar el token JWT con duración de 1 mes
+const generateToken30Days = (user) => {
+  const payload = {
+    userId: user.id,
+    email: user.email,
+  };
+
+  // Generar el token con una duración de 30 días
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "30d" });
+  return token;
+};
+
+const saveTokenFor30Days = (userId, token) => {
+  // Consulta para guardar el token en la base de datos
+  const query =
+    "INSERT INTO session_token (user_id, token, expires_date) VALUES (?, ?, ?)";
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Fecha de expiración a 30 días
+
+  db.query(query, [userId, token, expiresAt], (err, results) => {
+    if (err) {
+      console.error("Error al guardar el token en la base de datos", err);
+    }
+  });
+};
 
 // Función para verificar el token de Google
 const verifyGoogleToken = async (token) => {

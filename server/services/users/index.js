@@ -11,13 +11,7 @@ const PORT = process.env.USER_PORT || 5001;
 app.use(express.json());
 
 // Activar CORS
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 // Configuración de la base de datos
 const db = mysql.createConnection({
@@ -38,7 +32,7 @@ db.connect((err) => {
 
 //------------- TOKEN VERIFICATION ----------------//
 
-const verifyToken = (req, res, next) => {
+const verifyToken = (allowedTypes) => (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
 
   if (!token) {
@@ -48,7 +42,7 @@ const verifyToken = (req, res, next) => {
   }
 
   db.query(
-    "SELECT * FROM session_token WHERE token = ?",
+    `SELECT st.user_id, u.type, st.expires_date FROM session_token st JOIN users u on u.id = st.user_id WHERE token = ?`,
     [token],
     (error, session) => {
       if (error) {
@@ -63,15 +57,21 @@ const verifyToken = (req, res, next) => {
           .json({ message: "Token inválido o no encontrado." });
       }
 
-      // Verifica si el token ha expirado
       const sessionData = session[0];
       const now = new Date();
       if (new Date(sessionData.expires_date) < now) {
         return res.status(401).json({ message: "Token ha expirado." });
       }
 
+      // Verifica si el tipo de usuario está permitido
+      if (!allowedTypes.includes(sessionData.type)) {
+        return res
+          .status(403)
+          .json({ message: "Acceso denegado. Permisos insuficientes." });
+      }
+
       // Si todo está bien, pasa al siguiente middleware
-      req.user = { id: sessionData.user_id };
+      req.user = { id: sessionData.user_id, type: sessionData.type };
       next();
     }
   );
@@ -79,28 +79,7 @@ const verifyToken = (req, res, next) => {
 
 //----------------- PROFILE PAGE -----------------//
 
-app.get("/api/userData", verifyToken, (req, res) => {
-  const userId = req.user.id;
-
-  db.query(
-    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
-    [userId],
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos del usuario" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
-
-      res.status(200).json(results[0]);
-    }
-  );
-});
-
-app.post("/api/updateUser", verifyToken, (req, res) => {
+app.post("/api/updateUser", verifyToken(["1"]), (req, res) => {
   const userId = req.user.id;
   const { updateData } = req.body;
   const currentPassword = updateData.currentPassword;
