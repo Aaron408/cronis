@@ -365,6 +365,121 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
   });
 });
 
+//Cambiar imagen
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configuración de almacenamiento para `multer`
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../../../Assets/uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `profile-${uniqueSuffix}${ext}`);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Tipo de archivo no permitido'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+});
+
+// Middleware para manejar errores de multer
+const handleMulterError = (error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'El archivo excede el tamaño máximo permitido (5MB)' });
+    }
+    return res.status(400).json({ message: `Error al subir el archivo: ${error.message}` });
+  }
+  if (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  next();
+};
+
+// Ruta de carga de imagen mejorada
+app.post("/api/uploadImage", verifyToken(["1"]), upload.single('image'), handleMulterError, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No se ha proporcionado ninguna imagen" });
+    }
+
+    const userId = req.user.id; // Usar el ID del token en lugar del body
+    const imageUrl = `${req.file.filename}`;
+
+    // Eliminar imagen anterior si existe
+    const [oldImage] = await db.promise().query(
+      'SELECT profile_picture_url FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (oldImage[0]?.profile_picture_url) {
+      const oldImagePath = path.join(__dirname, '../../../Assets', oldImage[0].profile_picture_url);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Actualizar URL de la imagen en la base de datos
+    await db.promise().query(
+      'UPDATE users SET profile_picture_url = ? WHERE id = ?',
+      [imageUrl, userId]
+    );
+
+    return res.status(200).json({
+      message: "Imagen actualizada correctamente",
+      imageUrl: imageUrl
+    });
+  } catch (error) {
+    console.error('Error en uploadImage:', error);
+    return res.status(500).json({
+      message: "Error al procesar la imagen",
+      error: error.message
+    });
+  }
+});
+
+
+app.get('/api/getUserProfileImage', verifyToken(["1"]), (req, res) => {
+  const userId = req.user.id;
+  const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
+
+  db.query(selectQuery, [userId], (err, result) => {
+    if (err) {
+      console.error("Error fetching profile image:", err);
+      return res.status(500).json({ error: "Failed to fetch profile image" });
+    }
+    if (result.length > 0) {
+      const profilePictureUrl = result[0].profile_picture_url;
+      return res.status(200).json({ profilePictureUrl });
+    } else {
+      return res.status(404).json({ error: "User not found" });
+    }
+  });
+});
+
+
 // Levantar el servidor
 app.listen(PORT, () => {
   console.log(`Users service running on port ${PORT}`);
