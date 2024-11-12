@@ -55,7 +55,6 @@ export default function Profile() {
 
   useEffect(() => {
     userData();
-
   }, []);
 
   useEffect(() => {
@@ -153,51 +152,6 @@ export default function Profile() {
     setSaveChangues(false);
   };
 
-  const [selectedImage, setSelectedImage] = useState(null);
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedImage(file);
-      // Preview the selected image
-      const previewUrl = URL.createObjectURL(file);
-      setUsuarioCopy((prev) => ({ ...prev, profile_picture_url: previewUrl }));
-    }
-  };
-
-  const updateImage = async () => {
-    if (!selectedImage) {
-      return toast.error("Por favor selecciona una imagen.");
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append("image", selectedImage); 
-      formData.append("userId", usuarioCopy.id);
-
-      const response = await UsersApi.post("/api/uploadImage", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const data = response.data;
-      toast.success("Imagen actualizada correctamente!");
-      setUsuarioCopy((prev) => ({
-        ...prev,
-        profile_picture_url: data.imageUrl,
-      }));
-    } catch (error) {
-      console.error("Error al actualizar la imagen", error);
-      toast.error("Error al actualizar la imagen. Intenta nuevamente.");
-    }
-  };
-
-  
-  const imageBaseUrl = "../../../../Assets/uploads"; 
-
-
-
-
-  
   return (
     <div className="container mx-auto py-5 md:py-10 px-1.5 md:px-14 overflow-x-hidden">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-start md:justify-between mb-6 space-y-2">
@@ -223,31 +177,14 @@ export default function Profile() {
             <div className="mt-6 flex flex-col items-center">
               <div className="w-36 h-36 bg-gray-200 rounded-full mb-4 flex items-center justify-center overflow-hidden">
                 <img
-                  src={`${imageBaseUrl}/${usuarioCopy.profile_picture_url}`}
+                  src={usuarioCopy.profile_picture_url}
                   alt="Descripción de la imagen"
                   className="h-full w-full object-cover"
                 />
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                style={{ display: "none" }}
-                id="imageUpload"
-              />
-              <label
-                htmlFor="imageUpload"
-                className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center cursor-pointer"
-              >
+              <button className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
                 <IoCameraOutline className="inline-block mr-2 h-5 w-5" />
                 Cambiar foto
-              </label>
-
-              <button
-                onClick={updateImage}
-                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-              >
-                Actualizar imagen
               </button>
             </div>
           </div>
