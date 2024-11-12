@@ -142,6 +142,227 @@ app.post("/api/updateUser", verifyToken(["1"]), (req, res) => {
   }
 });
 
+app.get("/api/userData", verifyToken(["1", "0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
+    [userId],
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos del usuario" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.status(200).json(results[0]);
+    }
+  );
+});
+
+//---------------- DASHBOARD PAGE -----------------//
+app.get("/api/adminData", verifyToken(["0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    "SELECT name, email, profile_picture_url FROM users WHERE id = ?",
+    [userId],
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos del usuario" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.status(200).json(results[0]);
+    }
+  );
+});
+
+app.get("/api/userStatistics", verifyToken(["0"]), (req, res) => {
+  const queryTotalUsers = `SELECT COUNT(*) AS total FROM users WHERE status != '2'`;
+  const queryPreviousMonthUsers = `
+    SELECT COUNT(*) AS previousMonth 
+    FROM users 
+    WHERE status = '0' 
+      AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)`;
+  const queryCurrentMonthUsers = `
+    SELECT COUNT(*) AS currentMonth 
+    FROM users 
+    WHERE status = '0' 
+      AND MONTH(register_date) = MONTH(CURDATE()) 
+      AND YEAR(register_date) = YEAR(CURDATE())`;
+
+  db.query(queryTotalUsers, (error, totalResults) => {
+    if (error)
+      return res
+        .status(500)
+        .json({ message: "Error al obtener el total de usuarios" });
+
+    db.query(queryPreviousMonthUsers, (error, previousResults) => {
+      if (error)
+        return res
+          .status(500)
+          .json({ message: "Error al obtener usuarios del mes anterior" });
+
+      db.query(queryCurrentMonthUsers, (error, currentResults) => {
+        if (error)
+          return res
+            .status(500)
+            .json({ message: "Error al obtener usuarios del mes actual" });
+
+        const total = totalResults[0].total;
+        const previousMonth = previousResults[0].previousMonth;
+        const currentMonth = currentResults[0].currentMonth;
+
+        const percentageChange =
+          previousMonth > 0
+            ? ((currentMonth - previousMonth) / previousMonth) * 100
+            : currentMonth > 0
+            ? 100
+            : 0;
+
+        res.status(200).json({
+          totalUsers: total,
+          previousMonthUsers: previousMonth,
+          currentMonthUsers: currentMonth,
+          percentageChange: percentageChange.toFixed(2),
+        });
+      });
+    });
+  });
+});
+
+app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
+  const query = `
+    WITH meses AS (
+      SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq MONTH), '%Y-%m') AS mes
+      FROM (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+            UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+            UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11) AS seqs
+    )
+    SELECT 
+        m.mes,
+        COUNT(u.id) AS total_usuarios
+    FROM 
+        meses m
+    LEFT JOIN 
+        users u ON DATE_FORMAT(u.register_date, '%Y-%m') = m.mes
+    GROUP BY 
+        m.mes
+    ORDER BY 
+        m.mes;
+  `;
+
+  db.query(query, (error, results) => {
+    if (error) {
+      console.error("Error al obtener los datos del gráfico:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al obtener los datos del gráfico" });
+    }
+    // Devuelve los datos al frontend
+    res.status(200).json({ data: results });
+  });
+});
+
+//---------------- USERS CRUD PAGE -----------------//
+app.get("/api/users", verifyToken(["0"]), (req, res) => {
+  const userId = req.user.id;
+
+  db.query(
+    `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, IFNULL(sp.name, 'N/A') AS suscription_plan, DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
+            CASE 
+              WHEN us.type = '0' THEN 'Administrador' 
+              WHEN us.type = '1' THEN 'Usuario' 
+              ELSE 'Desconocido'
+            END AS role,
+            CASE
+              WHEN us.status = '0' THEN 'Activo' 
+              WHEN us.status = '1' THEN 'Suspendido' 
+              ELSE 'Desconocido'
+            END AS status
+      FROM users us 
+      LEFT JOIN subscription_plan sp 
+      ON us.suscription_plan = sp.id
+      WHERE us.status != '2';
+      ;`,
+    (error, results) => {
+      if (error) {
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos de usuarios" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ message: "No hay usuarios que mostrar" });
+      }
+
+      res.status(200).json(results);
+    }
+  );
+});
+
+app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
+  const { name, email, type, suscription_plan, subscription_start_date, subscription_end_date } = req.body;
+
+  // Validaciones para el formulario
+  if (!name || !email || (!suscription_plan && type !== "1")) {
+    return res
+      .status(400)
+      .json({ message: "Llena correctamente el formulario." });
+  }
+
+  const registerDate = new Date().toISOString().slice(0, 10); // Fecha de registro en formato 'YYYY-MM-DD'
+  
+  // Generar contraseña aleatoria
+  const password = crypto.randomBytes(8).toString('hex');
+  const hashedPassword = crypto
+      .createHash("md5")
+      .update(password)
+      .digest("hex");
+
+  // Preparar los datos para la inserción
+  const userData = [
+    name,
+    email,
+    type,
+    suscription_plan || null,
+    registerDate,
+    hashedPassword,
+  ];
+
+  // Agregar fechas de suscripción si el plan es premium (asumiendo que el ID del plan premium es "2")
+  let query = `INSERT INTO users (name, email, type, suscription_plan, register_date, password`;
+  if (suscription_plan === 2) {
+    query += `, start_suscription, end_suscription`;
+    userData.push(subscription_start_date || null, subscription_end_date || null);
+  }
+  query += `) VALUES (?, ?, ?, ?, ?, ?`;
+  if (suscription_plan === 2) {
+    query += `, ?, ?`;
+  }
+  query += `)`;
+
+  // Insertar nuevo usuario en la base de datos
+  db.query(query, userData, (error, results) => {
+    if (error) {
+      console.error("Error al agregar usuario:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al agregar el usuario a la base de datos" });
+    }
+    res.status(201).json({ 
+      message: "Usuario agregado exitosamente",
+      password: password // Enviar la contraseña sin hash al cliente
+    });
+  });
+});
 
 //Cambiar imagen
 
@@ -149,79 +370,97 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Configuración de almacenamiento para `multer`
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = '../../../Assets/uploads';
-    // Crear el directorio si no existe
+    const uploadDir = path.join(__dirname, '../../../Assets/uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Crear un nombre único para el archivo
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `profile-${uniqueSuffix}${ext}`);
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  // Aceptar solo imágenes
-  if (file.mimetype.startsWith('image/')) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('No es un archivo de imagen válido'), false);
+    cb(new Error('Tipo de archivo no permitido'), false);
   }
 };
 
-const upload = multer({ 
-  storage: storage, 
+const upload = multer({
+  storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 1024 * 1024 * 5 // 5MB
+    fileSize: 5 * 1024 * 1024 // 5MB
   }
- });
-
- app.post('/api/uploadImage', verifyToken, upload.single('image'), (req, res) => {
-  const userId = req.user.id;
-  const newImageUrl = req.file.path;
-
-  // Paso 1: Obtener la URL de la imagen actual desde la base de datos
-  const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
-  db.query(selectQuery, [userId], (selectErr, selectResult) => {
-    if (selectErr) {
-      console.error("Error fetching current profile image:", selectErr);
-      return res.status(500).json({ error: "Failed to fetch current profile image" });
-    }
-
-    // Almacenar la URL de la imagen anterior si existe
-    const oldImageUrl = selectResult.length > 0 ? selectResult[0].profile_picture_url : null;
-
-    // Paso 2: Actualizar la base de datos con la nueva URL de la imagen
-    const updateQuery = `UPDATE users SET profile_picture_url = ? WHERE id = ?`;
-    db.query(updateQuery, [newImageUrl, userId], (updateErr, updateResult) => {
-      if (updateErr) {
-        console.error("Error updating user:", updateErr);
-        return res.status(500).json({ error: "Failed to update user" });
-      }
-
-      // Paso 3: Borrar la imagen anterior si existe y no es igual a la nueva
-      if (oldImageUrl && oldImageUrl !== newImageUrl) {
-        fs.unlink(oldImageUrl, (unlinkErr) => {
-          if (unlinkErr) {
-            console.error("Error deleting old image:", unlinkErr);
-          } else {
-            console.log("Old image deleted successfully");
-          }
-        });
-      }
-
-      return res.status(200).json({ message: "User updated successfully" });
-    });
-  });
 });
 
-app.get('/api/getUserProfileImage', verifyToken, (req, res) => {
+// Middleware para manejar errores de multer
+const handleMulterError = (error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'El archivo excede el tamaño máximo permitido (5MB)' });
+    }
+    return res.status(400).json({ message: `Error al subir el archivo: ${error.message}` });
+  }
+  if (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  next();
+};
+
+// Ruta de carga de imagen mejorada
+app.post("/api/uploadImage", verifyToken(["1"]), upload.single('image'), handleMulterError, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No se ha proporcionado ninguna imagen" });
+    }
+
+    const userId = req.user.id; // Usar el ID del token en lugar del body
+    const imageUrl = `${req.file.filename}`;
+
+    // Eliminar imagen anterior si existe
+    const [oldImage] = await db.promise().query(
+      'SELECT profile_picture_url FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (oldImage[0]?.profile_picture_url) {
+      const oldImagePath = path.join(__dirname, '../../../Assets', oldImage[0].profile_picture_url);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Actualizar URL de la imagen en la base de datos
+    await db.promise().query(
+      'UPDATE users SET profile_picture_url = ? WHERE id = ?',
+      [imageUrl, userId]
+    );
+
+    return res.status(200).json({
+      message: "Imagen actualizada correctamente",
+      imageUrl: imageUrl
+    });
+  } catch (error) {
+    console.error('Error en uploadImage:', error);
+    return res.status(500).json({
+      message: "Error al procesar la imagen",
+      error: error.message
+    });
+  }
+});
+
+
+app.get('/api/getUserProfileImage', verifyToken(["1"]), (req, res) => {
   const userId = req.user.id;
   const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
 
