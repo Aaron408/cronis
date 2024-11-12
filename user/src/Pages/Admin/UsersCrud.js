@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Table, {
   AvatarCell,
   SelectColumnFilter,
@@ -39,7 +39,6 @@ const customStyles = {
 
 const Users = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [plans, setPlans] = useState([]);
   const [newName, setNewName] = useState("");
   const [newMail, setNewMail] = useState("");
@@ -52,6 +51,7 @@ const Users = () => {
   const [passwordModal, setPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const modalRef = useRef(null);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -80,6 +80,41 @@ const Users = () => {
     fetchPlans();
   }, []);
 
+  useEffect(() => {
+    console.log(users);
+  }, [users]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        closeModal();
+      }
+    };
+
+    if (modalIsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [modalIsOpen]);
+
+  const statusOptions = [
+    { value: "0", label: "Activo" },
+    { value: "1", label: "Suspendido" },
+  ];
+
+  const rolOptions = [
+    { value: "0", label: "Administrador" },
+    { value: "1", label: "Usuario" },
+  ];
+
+  const planOptions = [
+    { value: 1, label: "Gratuito" },
+    { value: 2, label: "Premiun" },
+  ];
+
   const columns = React.useMemo(
     () => [
       {
@@ -91,17 +126,32 @@ const Users = () => {
       },
       {
         Header: "Plan",
-        Filter: SelectColumnFilter,
         accessor: "suscription_plan",
+        Cell: ({ value }) => {
+          const plan = planOptions.find((p) => p.value === value);
+          return plan ? plan.label : "N/A";
+        },
+        Filter: SelectColumnFilter,
+        filter: "includes",
       },
       {
         Header: "Estatus",
         accessor: "status",
-        Cell: StatusPill,
+        Cell: ({ value }) => (
+          <StatusPill
+            value={
+              statusOptions.find((option) => option.value === value)?.label ||
+              "Desconocido"
+            }
+          />
+        ),
       },
       {
         Header: "Rol",
-        accessor: "role",
+        accessor: "rol",
+        Cell: ({ value }) =>
+          rolOptions.find((option) => option.value === value)?.label ||
+          "Desconocido",
         Filter: SelectColumnFilter,
         filter: "includes",
       },
@@ -112,10 +162,10 @@ const Users = () => {
       {
         Header: "Acciones",
         accessor: "id",
-        Cell: ({ value }) => (
+        Cell: ({ value, row }) => (
           <div className="flex justify-around">
             <button
-              onClick={() => handleEdit(value)}
+              onClick={() => handleEdit(row.original)}
               className="text-blue-600 hover:text-blue-800"
             >
               <FaPencilAlt />
@@ -204,7 +254,7 @@ const Users = () => {
         email: selectedUser.email,
         suscription_plan: selectedUser.suscription_plan,
         status: selectedUser.status,
-        role: selectedUser.role,
+        rol: selectedUser.rol,
       });
       toast.success("Usuario actualizado exitosamente");
       fetchUsers();
@@ -290,9 +340,9 @@ const Users = () => {
                   }}
                   className="flex-1"
                   styles={customStyles}
-                  options={plans.map((plan) => ({
-                    value: plan.id,
-                    label: plan.name,
+                  options={planOptions.map((plan) => ({
+                    value: plan.value,
+                    label: plan.label,
                   }))}
                   placeholder={
                     newRol.value === "2" ? "Seleccione un plan" : "N/A"
@@ -351,13 +401,13 @@ const Users = () => {
           </div>
           {/* Edit User Modal */}
           {modalIsOpen && selectedUser && (
-            <div
-              className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-              id="my-modal"
-            >
-              <div className="relative top-20 mx-auto p-5 md:p-8 border md:w-[70%] shadow-lg rounded-lg bg-white">
-                <div className="mt-3 text-center">
-                  <h3 className="text-xl leading-6 font-bold text-gray-900">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+              <div
+                ref={modalRef}
+                className="relative p-5 md:p-8 border w-full md:w-[55%] shadow-lg rounded-lg bg-white"
+              >
+                <div className="text-center">
+                  <h3 className="text-xl leading-6 font-bold text-gray-900 mb-4">
                     Editar Usuario
                   </h3>
                   <form onSubmit={handleUpdateUser} className="mt-2 text-left">
@@ -369,16 +419,11 @@ const Users = () => {
                         Nombre
                       </label>
                       <input
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        className="py-2 px-3 bg-gray-200 text-gray-400 shadow-none rounded-lg focus:outline-none w-full"
                         id="name"
                         type="text"
                         value={selectedUser.name}
-                        onChange={(e) =>
-                          setSelectedUser({
-                            ...selectedUser,
-                            name: e.target.value,
-                          })
-                        }
+                        disabled={true}
                       />
                     </div>
                     <div className="mb-4">
@@ -389,105 +434,99 @@ const Users = () => {
                         Email
                       </label>
                       <input
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        className="py-2 px-3 bg-gray-200 text-gray-400 shadow-none rounded-lg focus:outline-none w-full"
                         id="email"
                         type="email"
                         value={selectedUser.email}
-                        onChange={(e) =>
-                          setSelectedUser({
-                            ...selectedUser,
-                            email: e.target.value,
-                          })
-                        }
+                        disabled={true}
                       />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:gap-4">
+                      <div className="mb-4 sm:w-1/2">
+                        <label
+                          className="block text-gray-700 text-sm font-bold mb-2"
+                          htmlFor="plan"
+                        >
+                          Plan
+                        </label>
+                        <Select
+                          value={planOptions.find(
+                            (option) =>
+                              option.value === selectedUser.suscription_plan
+                          )}
+                          onChange={(selectedOption) =>
+                            setSelectedUser({
+                              ...selectedUser,
+                              suscription_plan: selectedOption.value,
+                            })
+                          }
+                          options={planOptions}
+                          styles={customStyles}
+                          className="border border-2 rounded-lg"
+                        />
+                      </div>
+                      <div className="mb-4 sm:w-1/2">
+                        <label
+                          className="block text-gray-700 text-sm font-bold mb-2"
+                          htmlFor="status"
+                        >
+                          Estatus
+                        </label>
+                        <Select
+                          value={{
+                            value: selectedUser.status,
+                            label:
+                              selectedUser.status === "1"
+                                ? "Suspendido"
+                                : "Activo",
+                          }}
+                          onChange={(selectedOption) =>
+                            setSelectedUser({
+                              ...selectedUser,
+                              status: selectedOption.value,
+                            })
+                          }
+                          options={statusOptions}
+                          styles={customStyles}
+                          className="border border-2 rounded-lg"
+                        />
+                      </div>
                     </div>
                     <div className="mb-4">
                       <label
                         className="block text-gray-700 text-sm font-bold mb-2"
-                        htmlFor="plan"
-                      >
-                        Plan
-                      </label>
-                      <Select
-                        value={plans.find(
-                          (plan) => plan.id === selectedUser.suscription_plan
-                        )}
-                        onChange={(selectedOption) =>
-                          setSelectedUser({
-                            ...selectedUser,
-                            suscription_plan: selectedOption.value,
-                          })
-                        }
-                        options={plans.map((plan) => ({
-                          value: plan.id,
-                          label: plan.name,
-                        }))}
-                        styles={customStyles}
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label
-                        className="block text-gray-700 text-sm font-bold mb-2"
-                        htmlFor="status"
-                      >
-                        Estatus
-                      </label>
-                      <Select
-                        value={{
-                          value: selectedUser.status,
-                          label:
-                            selectedUser.status === "0" ? "Inactivo" : "Activo",
-                        }}
-                        onChange={(selectedOption) =>
-                          setSelectedUser({
-                            ...selectedUser,
-                            status: selectedOption.value,
-                          })
-                        }
-                        options={[
-                          { value: "0", label: "Inactivo" },
-                          { value: "1", label: "Activo" },
-                        ]}
-                        styles={customStyles}
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label
-                        className="block text-gray-700 text-sm font-bold mb-2"
-                        htmlFor="role"
+                        htmlFor="rol"
                       >
                         Rol
                       </label>
                       <Select
                         value={{
-                          value: selectedUser.role,
+                          value: selectedUser.rol,
                           label:
-                            selectedUser.role === "1"
+                            selectedUser.rol === "0"
                               ? "Administrador"
                               : "Usuario",
                         }}
                         onChange={(selectedOption) =>
                           setSelectedUser({
                             ...selectedUser,
-                            role: selectedOption.value,
+                            rol: selectedOption.value,
                           })
                         }
-                        options={[
-                          { value: "1", label: "Administrador" },
-                          { value: "2", label: "Usuario" },
-                        ]}
+                        options={rolOptions}
                         styles={customStyles}
+                        className="border border-2 rounded-lg"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between sm:justify-end sm:gap-6 mt-6">
                       <button
-                        className="bg-black hover:bg-gray-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                        className="bg-black hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
                         type="submit"
                       >
                         Guardar Cambios
                       </button>
                       <button
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
                         type="button"
                         onClick={closeModal}
                       >

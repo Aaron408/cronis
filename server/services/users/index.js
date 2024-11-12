@@ -241,23 +241,21 @@ app.get("/api/userStatistics", verifyToken(["0"]), (req, res) => {
 
 app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
   const query = `
-    WITH meses AS (
-      SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq MONTH), '%Y-%m') AS mes
+    SELECT 
+      m.mes,
+      COUNT(u.id) AS total_usuarios
+    FROM 
+      (SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq MONTH), '%Y-%m') AS mes
       FROM (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
             UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
             UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11) AS seqs
-    )
-    SELECT 
-        m.mes,
-        COUNT(u.id) AS total_usuarios
-    FROM 
-        meses m
+      ) AS m
     LEFT JOIN 
-        users u ON DATE_FORMAT(u.register_date, '%Y-%m') = m.mes
+      users u ON DATE_FORMAT(u.register_date, '%Y-%m') = m.mes
     GROUP BY 
-        m.mes
+      m.mes
     ORDER BY 
-        m.mes;
+      m.mes;
   `;
 
   db.query(query, (error, results) => {
@@ -277,21 +275,14 @@ app.get("/api/users", verifyToken(["0"]), (req, res) => {
   const userId = req.user.id;
 
   db.query(
-    `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, IFNULL(sp.name, 'N/A') AS suscription_plan, DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
-            CASE 
-              WHEN us.type = '0' THEN 'Administrador' 
-              WHEN us.type = '1' THEN 'Usuario' 
-              ELSE 'Desconocido'
-            END AS role,
-            CASE
-              WHEN us.status = '0' THEN 'Activo' 
-              WHEN us.status = '1' THEN 'Suspendido' 
-              ELSE 'Desconocido'
-            END AS status
-      FROM users us 
-      LEFT JOIN subscription_plan sp 
-      ON us.suscription_plan = sp.id
-      WHERE us.status != '2';
+    `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, 
+            sp.id AS suscription_plan,
+            DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
+            us.type AS rol,
+            us.status
+     FROM users us 
+     LEFT JOIN subscription_plan sp ON us.suscription_plan = sp.id
+     WHERE us.status != '2';
       ;`,
     (error, results) => {
       if (error) {
@@ -309,7 +300,14 @@ app.get("/api/users", verifyToken(["0"]), (req, res) => {
 });
 
 app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
-  const { name, email, type, suscription_plan, subscription_start_date, subscription_end_date } = req.body;
+  const {
+    name,
+    email,
+    type,
+    suscription_plan,
+    subscription_start_date,
+    subscription_end_date,
+  } = req.body;
 
   // Validaciones para el formulario
   if (!name || !email || (!suscription_plan && type !== "1")) {
@@ -319,13 +317,13 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
   }
 
   const registerDate = new Date().toISOString().slice(0, 10); // Fecha de registro en formato 'YYYY-MM-DD'
-  
+
   // Generar contraseña aleatoria
-  const password = crypto.randomBytes(8).toString('hex');
+  const password = crypto.randomBytes(8).toString("hex");
   const hashedPassword = crypto
-      .createHash("md5")
-      .update(password)
-      .digest("hex");
+    .createHash("md5")
+    .update(password)
+    .digest("hex");
 
   // Preparar los datos para la inserción
   const userData = [
@@ -341,7 +339,10 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
   let query = `INSERT INTO users (name, email, type, suscription_plan, register_date, password`;
   if (suscription_plan === 2) {
     query += `, start_suscription, end_suscription`;
-    userData.push(subscription_start_date || null, subscription_end_date || null);
+    userData.push(
+      subscription_start_date || null,
+      subscription_end_date || null
+    );
   }
   query += `) VALUES (?, ?, ?, ?, ?, ?`;
   if (suscription_plan === 2) {
@@ -357,9 +358,9 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
         .status(500)
         .json({ message: "Error al agregar el usuario a la base de datos" });
     }
-    res.status(201).json({ 
+    res.status(201).json({
       message: "Usuario agregado exitosamente",
-      password: password // Enviar la contraseña sin hash al cliente
+      password: password, // Enviar la contraseña sin hash al cliente
     });
   });
 });
