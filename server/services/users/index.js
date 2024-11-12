@@ -185,62 +185,70 @@ app.get("/api/adminData", verifyToken(["0"]), (req, res) => {
   );
 });
 
-app.get("/api/userStatistics", verifyToken(["0"]), (req, res) => {
-  const queryTotalUsers = `SELECT COUNT(*) AS total FROM users WHERE status != '2'`;
-  const queryPreviousMonthUsers = `
-    SELECT COUNT(*) AS previousMonth 
-    FROM users 
-    WHERE status = '0' 
-      AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)`;
-  const queryCurrentMonthUsers = `
-    SELECT COUNT(*) AS currentMonth 
-    FROM users 
-    WHERE status = '0' 
-      AND MONTH(register_date) = MONTH(CURDATE()) 
-      AND YEAR(register_date) = YEAR(CURDATE())`;
+app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
+  const query = `
+    SELECT 
+      (SELECT COUNT(*) FROM users WHERE status != '2') AS total_users,
+      (SELECT COUNT(*) FROM users WHERE status = '0' AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_users,
+      (SELECT COUNT(*) FROM users WHERE status = '0' AND MONTH(register_date) = MONTH(CURDATE()) AND YEAR(register_date) = YEAR(CURDATE())) AS current_month_users,
+      
+      (SELECT COUNT(*) FROM activity WHERE status = '0') AS total_activities,
+      (SELECT COUNT(*) FROM activity WHERE status = '0' AND due_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_activities,
+      (SELECT COUNT(*) FROM activity WHERE status = '0' AND MONTH(due_date) = MONTH(CURDATE()) AND YEAR(due_date) = YEAR(CURDATE())) AS current_month_activities,
+      
+      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= CURDATE() AND (u.end_suscription IS NULL OR u.end_suscription > CURDATE())), 0) AS total_revenue,
+      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH) AND (u.end_suscription IS NULL OR u.end_suscription > LAST_DAY(CURDATE() - INTERVAL 1 MONTH))), 0) AS previous_month_revenue,
+      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= CURDATE() AND (u.end_suscription IS NULL OR u.end_suscription > CURDATE()) AND MONTH(u.start_suscription) = MONTH(CURDATE()) AND YEAR(u.start_suscription) = YEAR(CURDATE())), 0) AS current_month_revenue
+  `;
 
-  db.query(queryTotalUsers, (error, totalResults) => {
-    if (error)
-      return res
-        .status(500)
-        .json({ message: "Error al obtener el total de usuarios" });
+  db.query(query, (error, results) => {
+    if (error) {
+      console.error("Error al obtener estadísticas del dashboard:", error);
+      return res.status(500).json({ message: "Error al obtener estadísticas del dashboard" });
+    }
 
-    db.query(queryPreviousMonthUsers, (error, previousResults) => {
-      if (error)
-        return res
-          .status(500)
-          .json({ message: "Error al obtener usuarios del mes anterior" });
+    const data = results[0];
 
-      db.query(queryCurrentMonthUsers, (error, currentResults) => {
-        if (error)
-          return res
-            .status(500)
-            .json({ message: "Error al obtener usuarios del mes actual" });
+    // Calculate percentage changes
+    const calculatePercentageChange = (current, previous) => {
+      if (previous > 0) {
+        return ((current - previous) / previous) * 100;
+      } else if (current > 0) {
+        return 100;
+      } else {
+        return 0;
+      }
+    };
 
-        const total = totalResults[0].total;
-        const previousMonth = previousResults[0].previousMonth;
-        const currentMonth = currentResults[0].currentMonth;
+    const userPercentageChange = calculatePercentageChange(data.current_month_users, data.previous_month_users);
+    const activityPercentageChange = calculatePercentageChange(data.current_month_activities, data.previous_month_activities);
+    const revenuePercentageChange = calculatePercentageChange(data.current_month_revenue, data.previous_month_revenue);
 
-        const percentageChange =
-          previousMonth > 0
-            ? ((currentMonth - previousMonth) / previousMonth) * 100
-            : currentMonth > 0
-            ? 100
-            : 0;
-
-        res.status(200).json({
-          totalUsers: total,
-          previousMonthUsers: previousMonth,
-          currentMonthUsers: currentMonth,
-          percentageChange: percentageChange.toFixed(2),
-        });
-      });
+    res.status(200).json({
+      users: {
+        total: data.total_users,
+        previousMonth: data.previous_month_users,
+        currentMonth: data.current_month_users,
+        percentageChange: userPercentageChange.toFixed(2)
+      },
+      activities: {
+        total: data.total_activities,
+        previousMonth: data.previous_month_activities,
+        currentMonth: data.current_month_activities,
+        percentageChange: activityPercentageChange.toFixed(2)
+      },
+      revenue: {
+        total: data.total_revenue,
+        previousMonth: data.previous_month_revenue,
+        currentMonth: data.current_month_revenue,
+        percentageChange: revenuePercentageChange.toFixed(2)
+      }
     });
   });
 });
 
 app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
-  const query = `
+  const queryUsers = `
     SELECT 
       m.mes,
       COUNT(u.id) AS total_usuarios
@@ -258,17 +266,51 @@ app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
       m.mes;
   `;
 
-  db.query(query, (error, results) => {
+  const queryRevenue = `
+    SELECT 
+      DATE_FORMAT(m.month_start, '%Y-%m') AS month,
+      COALESCE(SUM(sp.price), 0) AS monthly_revenue
+    FROM (
+      SELECT LAST_DAY(CURDATE()) - INTERVAL n MONTH + INTERVAL 1 DAY AS month_start,
+            LAST_DAY(CURDATE() - INTERVAL n MONTH) AS month_end
+      FROM (
+          SELECT 0 AS n UNION SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+          UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+          UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
+      ) months
+    ) m
+    LEFT JOIN users u ON u.start_suscription <= m.month_end
+      AND (u.end_suscription IS NULL OR u.end_suscription > m.month_start)
+    LEFT JOIN subscription_plan sp ON u.suscription_plan = sp.id
+    GROUP BY m.month_start
+    ORDER BY m.month_start DESC
+    LIMIT 12;
+  `;
+
+  db.query(queryUsers, (error, usersResults) => {
     if (error) {
-      console.error("Error al obtener los datos del gráfico:", error);
+      console.error("Error al obtener datos de usuarios:", error);
       return res
         .status(500)
-        .json({ message: "Error al obtener los datos del gráfico" });
+        .json({ message: "Error al obtener datos de usuarios" });
     }
-    // Devuelve los datos al frontend
-    res.status(200).json({ data: results });
+
+    db.query(queryRevenue, (error, revenueResults) => {
+      if (error) {
+        console.error("Error al obtener datos de ingresos:", error);
+        return res
+          .status(500)
+          .json({ message: "Error al obtener datos de ingresos" });
+      }
+
+      res.status(200).json({
+        usersData: usersResults,
+        revenueData: revenueResults,
+      });
+    });
   });
 });
+
 
 //---------------- USERS CRUD PAGE -----------------//
 app.get("/api/users", verifyToken(["0"]), (req, res) => {
@@ -364,121 +406,6 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
     });
   });
 });
-
-//Cambiar imagen
-
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
-// Configuración de almacenamiento para `multer`
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../../../Assets/uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `profile-${uniqueSuffix}${ext}`);
-  }
-});
-
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Tipo de archivo no permitido'), false);
-  }
-};
-
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
-  }
-});
-
-// Middleware para manejar errores de multer
-const handleMulterError = (error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'El archivo excede el tamaño máximo permitido (5MB)' });
-    }
-    return res.status(400).json({ message: `Error al subir el archivo: ${error.message}` });
-  }
-  if (error) {
-    return res.status(400).json({ message: error.message });
-  }
-  next();
-};
-
-// Ruta de carga de imagen mejorada
-app.post("/api/uploadImage", verifyToken(["1"]), upload.single('image'), handleMulterError, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No se ha proporcionado ninguna imagen" });
-    }
-
-    const userId = req.user.id; // Usar el ID del token en lugar del body
-    const imageUrl = `${req.file.filename}`;
-
-    // Eliminar imagen anterior si existe
-    const [oldImage] = await db.promise().query(
-      'SELECT profile_picture_url FROM users WHERE id = ?',
-      [userId]
-    );
-
-    if (oldImage[0]?.profile_picture_url) {
-      const oldImagePath = path.join(__dirname, '../../../Assets', oldImage[0].profile_picture_url);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-    }
-
-    // Actualizar URL de la imagen en la base de datos
-    await db.promise().query(
-      'UPDATE users SET profile_picture_url = ? WHERE id = ?',
-      [imageUrl, userId]
-    );
-
-    return res.status(200).json({
-      message: "Imagen actualizada correctamente",
-      imageUrl: imageUrl
-    });
-  } catch (error) {
-    console.error('Error en uploadImage:', error);
-    return res.status(500).json({
-      message: "Error al procesar la imagen",
-      error: error.message
-    });
-  }
-});
-
-
-app.get('/api/getUserProfileImage', verifyToken(["1"]), (req, res) => {
-  const userId = req.user.id;
-  const selectQuery = `SELECT profile_picture_url FROM users WHERE id = ?`;
-
-  db.query(selectQuery, [userId], (err, result) => {
-    if (err) {
-      console.error("Error fetching profile image:", err);
-      return res.status(500).json({ error: "Failed to fetch profile image" });
-    }
-    if (result.length > 0) {
-      const profilePictureUrl = result[0].profile_picture_url;
-      return res.status(200).json({ profilePictureUrl });
-    } else {
-      return res.status(404).json({ error: "User not found" });
-    }
-  });
-});
-
 
 // Levantar el servidor
 app.listen(PORT, () => {
