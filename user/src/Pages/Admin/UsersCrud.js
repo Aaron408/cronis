@@ -51,7 +51,10 @@ const Users = () => {
   const [passwordModal, setPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [deleteModalIsOpen, setDeleteModalIsOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
   const modalRef = useRef(null);
+  const deleteModalRef = useRef(null);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -89,16 +92,22 @@ const Users = () => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         closeModal();
       }
+      if (
+        deleteModalRef.current &&
+        !deleteModalRef.current.contains(event.target)
+      ) {
+        closeDeleteModal();
+      }
     };
 
-    if (modalIsOpen) {
+    if (modalIsOpen || deleteModalIsOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [modalIsOpen]);
+  }, [modalIsOpen, deleteModalIsOpen]);
 
   const statusOptions = [
     { value: "0", label: "Activo" },
@@ -171,7 +180,7 @@ const Users = () => {
               <FaPencilAlt />
             </button>
             <button
-              onClick={() => handleDelete(value)}
+              onClick={() => openDeleteModal(value)}
               className="text-red-600 hover:text-red-800"
             >
               <FaTrash />
@@ -192,8 +201,8 @@ const Users = () => {
     setSubscriptionEndDate("");
   };
 
-  const handleEdit = (userId) => {
-    setSelectedUser(userId);
+  const handleEdit = (user) => {
+    setSelectedUser(user);
     setModalIsOpen(true);
   };
 
@@ -202,7 +211,29 @@ const Users = () => {
     setSelectedUser(null);
   };
 
-  const handleDelete = (userId) => {};
+  const openDeleteModal = (userId) => {
+    setUserToDelete(userId);
+    setDeleteModalIsOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalIsOpen(false);
+    setUserToDelete(null);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await UsersApi.post("/api/deleteUser", {
+        userId: userToDelete,
+      });
+      toast.success("Usuario eliminado exitosamente!");
+      closeDeleteModal();
+      fetchUsers();
+    } catch (error) {
+      console.error("Error al eliminar usuario:", error);
+      toast.error("Error al eliminar usuario");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -249,16 +280,13 @@ const Users = () => {
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     try {
-      const response = await UsersApi.put(`/api/users/${selectedUser.id}`, {
-        name: selectedUser.name,
-        email: selectedUser.email,
-        suscription_plan: selectedUser.suscription_plan,
-        status: selectedUser.status,
-        rol: selectedUser.rol,
+      await UsersApi.post("/api/updateUserCRUD", {
+        selectedUser,
       });
-      toast.success("Usuario actualizado exitosamente");
+      toast.success("Usuario actualizado exitosamente!");
+      setModalIsOpen(false);
+      setSelectedUser(null);
       fetchUsers();
-      closeModal();
     } catch (error) {
       console.error("Error al actualizar usuario:", error);
       toast.error("Error al actualizar usuario");
@@ -534,6 +562,35 @@ const Users = () => {
                       </button>
                     </div>
                   </form>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Delete Confirmation Modal */}
+          {deleteModalIsOpen && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+              <div
+                ref={deleteModalRef}
+                className="relative p-5 sm:p-8 border w-[90%] sm:w-[42%] lg:w-[25%] shadow-lg rounded-lg bg-white"
+              >
+                <div className="text-center">
+                  <h3 className="text-xl leading-6 font-bold text-gray-900 mb-4">
+                    ¿Estás seguro de eliminar este usuario?
+                  </h3>
+                  <div className="flex justify-center gap-4">
+                    <button
+                      onClick={handleDelete}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={closeDeleteModal}
+                      className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

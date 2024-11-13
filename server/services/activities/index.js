@@ -491,23 +491,63 @@ app.post("/api/activities", verifyToken(["1"]), (req, res) => {
   });
 });
 
+app.post("/api/deleteActivity", verifyToken(["1"]), (req, res) => {
+  const userId = req.user.id;
+  const { activityId } = req.body; 
+
+  db.beginTransaction((err) => {
+    if (err) {
+      console.error("Error al iniciar la transacción:", err);
+      return res.status(500).json({ message: "Error al iniciar la transacción" });
+    }
+
+    // Paso 1: Eliminar registros en la tabla schedule relacionados con la actividad
+    const deleteScheduleQuery = `DELETE FROM schedule WHERE activity_id = ? AND user_id = ?`;
+    db.query(deleteScheduleQuery, [activityId, userId], (error, results) => {
+      if (error) {
+        console.error("Error al eliminar de schedule:", error);
+        return db.rollback(() => {
+          res.status(500).json({ message: "Error al eliminar la actividad del horario" });
+        });
+      }
+
+      // Paso 2: Eliminar la actividad en la tabla activity
+      const deleteActivityQuery = `DELETE FROM activity WHERE id = ? AND user_id = ?`;
+      db.query(deleteActivityQuery, [activityId, userId], (error, results) => {
+        if (error) {
+          console.error("Error al eliminar la actividad:", error);
+          return db.rollback(() => {
+            res.status(500).json({ message: "Error al eliminar la actividad" });
+          });
+        }
+
+        // Confirmar la transacción si ambos pasos son exitosos
+        db.commit((err) => {
+          if (err) {
+            console.error("Error al confirmar la transacción:", err);
+            return db.rollback(() => {
+              res.status(500).json({ message: "Error al confirmar la transacción" });
+            });
+          }
+          res.status(200).json({ message: "Actividad eliminada exitosamente" });
+        });
+      });
+    });
+  });
+});
+
 //--------------- USERS CRUD PAGE ----------------//
 
 app.get("/api/plans", verifyToken(["0"]), (req, res) => {
   const userId = req.user.id;
 
-  db.query(
-    `SELECT id, name FROM subscription_plan`,
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener los planes" });
-      }
-
-      res.status(200).json(results.length > 0 ? results : []);
+  db.query(`SELECT id, name FROM subscription_plan`, (error, results) => {
+    if (error) {
+      return res.status(500).json({ message: "Error al obtener los planes" });
     }
-  );
+
+    res.status(200).json(results.length > 0 ? results : []);
+  });
 });
 
 // Levantar el servidor

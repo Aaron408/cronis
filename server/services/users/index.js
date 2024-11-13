@@ -204,7 +204,9 @@ app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
   db.query(query, (error, results) => {
     if (error) {
       console.error("Error al obtener estadísticas del dashboard:", error);
-      return res.status(500).json({ message: "Error al obtener estadísticas del dashboard" });
+      return res
+        .status(500)
+        .json({ message: "Error al obtener estadísticas del dashboard" });
     }
 
     const data = results[0];
@@ -220,29 +222,38 @@ app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
       }
     };
 
-    const userPercentageChange = calculatePercentageChange(data.current_month_users, data.previous_month_users);
-    const activityPercentageChange = calculatePercentageChange(data.current_month_activities, data.previous_month_activities);
-    const revenuePercentageChange = calculatePercentageChange(data.current_month_revenue, data.previous_month_revenue);
+    const userPercentageChange = calculatePercentageChange(
+      data.current_month_users,
+      data.previous_month_users
+    );
+    const activityPercentageChange = calculatePercentageChange(
+      data.current_month_activities,
+      data.previous_month_activities
+    );
+    const revenuePercentageChange = calculatePercentageChange(
+      data.current_month_revenue,
+      data.previous_month_revenue
+    );
 
     res.status(200).json({
       users: {
         total: data.total_users,
         previousMonth: data.previous_month_users,
         currentMonth: data.current_month_users,
-        percentageChange: userPercentageChange.toFixed(2)
+        percentageChange: userPercentageChange.toFixed(2),
       },
       activities: {
         total: data.total_activities,
         previousMonth: data.previous_month_activities,
         currentMonth: data.current_month_activities,
-        percentageChange: activityPercentageChange.toFixed(2)
+        percentageChange: activityPercentageChange.toFixed(2),
       },
       revenue: {
         total: data.total_revenue,
         previousMonth: data.previous_month_revenue,
         currentMonth: data.current_month_revenue,
-        percentageChange: revenuePercentageChange.toFixed(2)
-      }
+        percentageChange: revenuePercentageChange.toFixed(2),
+      },
     });
   });
 });
@@ -311,6 +322,111 @@ app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
   });
 });
 
+app.get("/api/activity", verifyToken(["0"]), async (req, res) => {
+  const queryActivities = `
+    SELECT 
+      u.name AS user_name,
+      a.created AS event_date,
+      CASE
+          WHEN TIMESTAMPDIFF(MINUTE, a.created, NOW()) < 60 THEN CONCAT(TIMESTAMPDIFF(MINUTE, a.created, NOW()), ' minutos')
+          WHEN TIMESTAMPDIFF(HOUR, a.created, NOW()) < 24 THEN CONCAT(TIMESTAMPDIFF(HOUR, a.created, NOW()), ' horas')
+          WHEN TIMESTAMPDIFF(DAY, a.created, NOW()) < 7 THEN CONCAT(TIMESTAMPDIFF(DAY, a.created, NOW()), ' días')
+          WHEN TIMESTAMPDIFF(WEEK, a.created, NOW()) < 4 THEN CONCAT(TIMESTAMPDIFF(WEEK, a.created, NOW()), ' semanas')
+          WHEN TIMESTAMPDIFF(MONTH, a.created, NOW()) < 12 THEN CONCAT(TIMESTAMPDIFF(MONTH, a.created, NOW()), ' meses')
+          ELSE CONCAT(TIMESTAMPDIFF(YEAR, a.created, NOW()), ' años')
+      END AS time_ago,
+      'Ha creado una actividad' AS message
+    FROM 
+      activity a
+    JOIN 
+      users u ON a.user_id = u.id
+    ORDER BY 
+      a.created DESC
+  `;
+
+  const queryUsers = `
+    SELECT 
+      u.name AS user_name,
+      u.register_date AS event_date,
+      CASE
+          WHEN TIMESTAMPDIFF(MINUTE, u.register_date, NOW()) < 60 THEN CONCAT(TIMESTAMPDIFF(MINUTE, u.register_date, NOW()), ' minutos')
+          WHEN TIMESTAMPDIFF(HOUR, u.register_date, NOW()) < 24 THEN CONCAT(TIMESTAMPDIFF(HOUR, u.register_date, NOW()), ' horas')
+          WHEN TIMESTAMPDIFF(DAY, u.register_date, NOW()) < 7 THEN CONCAT(TIMESTAMPDIFF(DAY, u.register_date, NOW()), ' días')
+          WHEN TIMESTAMPDIFF(WEEK, u.register_date, NOW()) < 4 THEN CONCAT(TIMESTAMPDIFF(WEEK, u.register_date, NOW()), ' semanas')
+          WHEN TIMESTAMPDIFF(MONTH, u.register_date, NOW()) < 12 THEN CONCAT(TIMESTAMPDIFF(MONTH, u.register_date, NOW()), ' meses')
+          ELSE CONCAT(TIMESTAMPDIFF(YEAR, u.register_date, NOW()), ' años')
+      END AS time_ago,
+      'Ahora es miembro de Cronis' AS message
+    FROM 
+      users u
+    ORDER BY 
+      u.register_date DESC
+  `;
+
+  const queryPayments = `
+    SELECT 
+      u.name AS user_name,
+      hp.payment_date AS event_date,
+      CASE
+          WHEN TIMESTAMPDIFF(MINUTE, hp.payment_date, NOW()) < 60 THEN CONCAT(TIMESTAMPDIFF(MINUTE, hp.payment_date, NOW()), ' minutos')
+          WHEN TIMESTAMPDIFF(HOUR, hp.payment_date, NOW()) < 24 THEN CONCAT(TIMESTAMPDIFF(HOUR, hp.payment_date, NOW()), ' horas')
+          WHEN TIMESTAMPDIFF(DAY, hp.payment_date, NOW()) < 7 THEN CONCAT(TIMESTAMPDIFF(DAY, hp.payment_date, NOW()), ' días')
+          WHEN TIMESTAMPDIFF(WEEK, hp.payment_date, NOW()) < 4 THEN CONCAT(TIMESTAMPDIFF(WEEK, hp.payment_date, NOW()), ' semanas')
+          WHEN TIMESTAMPDIFF(MONTH, hp.payment_date, NOW()) < 12 THEN CONCAT(TIMESTAMPDIFF(MONTH, hp.payment_date, NOW()), ' meses')
+          ELSE CONCAT(TIMESTAMPDIFF(YEAR, hp.payment_date, NOW()), ' años')
+      END AS time_ago,
+      'Ahora es premium' AS message
+    FROM 
+      users u
+    JOIN 
+      historical_payment hp ON u.id = hp.user_id
+    WHERE
+      hp.status = '1'
+    ORDER BY 
+      hp.payment_date DESC
+  `;
+
+  try {
+    const [activities, users, payments] = await Promise.all([
+      new Promise((resolve, reject) => {
+        db.query(queryActivities, (error, results) => {
+          if (error) reject(error);
+          else resolve(results);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        db.query(queryUsers, (error, results) => {
+          if (error) reject(error);
+          else resolve(results);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        db.query(queryPayments, (error, results) => {
+          if (error) reject(error);
+          else resolve(results);
+        });
+      }),
+    ]);
+
+    // Combine all results
+    const allActivities = [...activities, ...users, ...payments];
+
+    // Sort by event_date in descending order
+    allActivities.sort(
+      (a, b) => new Date(b.event_date) - new Date(a.event_date)
+    );
+
+    // Take only the first 10 items
+    const recentActivities = allActivities.slice(0, 6);
+
+    res.status(200).json(recentActivities);
+  } catch (error) {
+    console.error("Error al obtener la actividad de los usuarios:", error);
+    res
+      .status(500)
+      .json({ message: "Error al obtener la actividad de los usuarios" });
+  }
+});
 
 //---------------- USERS CRUD PAGE -----------------//
 app.get("/api/users", verifyToken(["0"]), (req, res) => {
@@ -318,12 +434,13 @@ app.get("/api/users", verifyToken(["0"]), (req, res) => {
 
   db.query(
     `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, 
-            sp.id AS suscription_plan,
+            us.suscription_plan,
+            us.start_suscription,
+            us.end_suscription,
             DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
             us.type AS rol,
             us.status
-     FROM users us 
-     LEFT JOIN subscription_plan sp ON us.suscription_plan = sp.id
+     FROM users us
      WHERE us.status != '2';
       ;`,
     (error, results) => {
@@ -406,6 +523,63 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
     });
   });
 });
+
+app.post("/api/updateUserCRUD", verifyToken(["0"]), (req, res) => {
+  const {
+    id,
+    name,
+    email,
+    suscription_plan,
+    status,
+  } = req.body.selectedUser;
+
+  // Consulta de actualización
+  const query = `
+    UPDATE users 
+    SET name = ?, email = ?, suscription_plan = ?, status = ?
+    WHERE 
+      id = ?
+  `;
+
+  const userData = [name, email, suscription_plan, status, id];
+
+  // Ejecutar la consulta
+  db.query(query, userData, (error, results) => {
+    if (error) {
+      console.error("Error al actualizar usuario:", error);
+      return res
+        .status(500)
+        .json({
+          message: "Error al actualizar el usuario en la base de datos",
+        });
+    }
+    res.status(200).json({ message: "Usuario actualizado exitosamente" });
+  });
+});
+
+app.post("/api/deleteUser", verifyToken(["0"]), (req, res) => {
+  const { userId } = req.body;
+
+  const query = `UPDATE users SET status = ? WHERE id = ?`;
+  const userData = [2, userId];
+
+  db.query(query, userData, (error, results) => {
+    if (error) {
+      console.error("Error al realizar el borrado lógico del usuario:", error);
+      return res.status(500).json({
+        message: "Error al realizar el borrado lógico del usuario en la base de datos",
+      });
+    }
+
+    // Verificar si la actualización afectó alguna fila
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    res.status(200).json({ message: "Usuario eliminado lógicamente exitosamente" });
+  });
+});
+
 
 // Levantar el servidor
 app.listen(PORT, () => {

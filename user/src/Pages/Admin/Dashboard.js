@@ -20,12 +20,22 @@ const Dashboard = () => {
     { name: "Ingresos Mensuales", data: [] },
   ]);
   const [categories, setCategories] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
   useEffect(() => {
+    const fetchRecentActivity = async () => {
+      try {
+        const response = await UsersApi.get("/api/activity");
+        setRecentActivity(response.data);
+      } catch (error) {
+        console.error("Error fetching recent activity:", error);
+      }
+    };
+
     const fetchDashboardStats = async () => {
       try {
         const response = await UsersApi.get("/api/dashboardStatistics");
@@ -78,6 +88,7 @@ const Dashboard = () => {
 
     fetchGraphicsData();
     fetchDashboardStats();
+    fetchRecentActivity();
   }, []);
 
   // Calcular cambios porcentuales entre cada mes para el gráfico de barras
@@ -168,7 +179,9 @@ const Dashboard = () => {
               },
               {
                 title: "Total recaudado",
-                value: `$${parseFloat(dashboardStats.revenue.total).toFixed(2)}`,
+                value: `$${parseFloat(dashboardStats.revenue.total).toFixed(
+                  2
+                )}`,
                 change:
                   dashboardStats.revenue.percentageChange >= 0
                     ? "+" + dashboardStats.revenue.percentageChange + "%"
@@ -239,39 +252,20 @@ const Dashboard = () => {
               </h3>
             </div>
             <ul>
-              {[
-                {
-                  user: "John Doe",
-                  action: "created a new project",
-                  time: "2 hours ago",
-                },
-                {
-                  user: "Jane Smith",
-                  action: "completed a task",
-                  time: "4 hours ago",
-                },
-                {
-                  user: "Bob Johnson",
-                  action: "uploaded a file",
-                  time: "1 day ago",
-                },
-                {
-                  user: "Alice Brown",
-                  action: "commented on a project",
-                  time: "2 days ago",
-                },
-              ].map((activity, index) => (
+              {recentActivity.map((activity, index) => (
                 <li
                   key={index}
                   className="px-4 py-3 border-b border-gray-200 last:border-b-0"
                 >
                   <p className="text-sm text-gray-600">
                     <span className="font-medium text-gray-900">
-                      {activity.user}
+                      {activity.user_name}
                     </span>{" "}
-                    {activity.action}
+                    {activity.message}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {activity.time_ago}
+                  </p>
                 </li>
               ))}
             </ul>

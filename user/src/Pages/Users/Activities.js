@@ -11,8 +11,10 @@ import { toast } from "react-toastify";
 export default function Activities() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [events, setEvents] = useState([]);
+  const [eventToDelete, setEventToDelete] = useState(null);
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
@@ -26,22 +28,29 @@ export default function Activities() {
     end_time: "",
   });
   const modalRef = useRef(null);
+  const deleteModalRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         setIsModalOpen(false);
       }
+      if (
+        deleteModalRef.current &&
+        !deleteModalRef.current.contains(event.target)
+      ) {
+        setIsDeleteModalOpen(false);
+      }
     };
 
-    if (isModalOpen) {
+    if (isModalOpen || isDeleteModalOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, isDeleteModalOpen]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -74,8 +83,22 @@ export default function Activities() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteEvent = (id) => {
-    setEvents(events.filter((event) => event.id !== id));
+  const handleDeleteEvent = (event) => {
+    setEventToDelete(event);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    try {
+      await ActivitiesApi.post("/api/deleteActivity", { activityId: eventToDelete });
+      toast.success("Actividad eliminada exitosamente!");
+      userActivities();
+      setIsDeleteModalOpen(false);
+      setEventToDelete(null);
+    } catch (error) {
+      console.error("Error al eliminar la actividad", error);
+      toast.error("Error al eliminar la actividad");
+    }
   };
 
   const handleSaveEdit = async (e) => {
@@ -140,8 +163,11 @@ export default function Activities() {
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-semibold">{event.title}</h3>
                     <span className="text-sm text-gray-500">
-                      {new Date(event.start_date).toLocaleDateString()} -{" "}
-                      {new Date(event.due_date).toLocaleDateString()}
+                      {event.type === "Puntual"
+                        ? `${event.start_time}/${event.end_time} - ${new Date(
+                            event.date
+                          ).toLocaleDateString()}`
+                        : "Recurrente"}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mb-2">
@@ -455,6 +481,28 @@ export default function Activities() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg w-96" ref={deleteModalRef}>
+            <h2 className="text-2xl font-bold mb-4">Confirmar Eliminación</h2>
+            <p className="mb-6">¿Estás seguro de eliminar este usuario?</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteEvent}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}
