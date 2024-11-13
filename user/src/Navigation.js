@@ -7,11 +7,14 @@ import SingIn from "./Pages/SingIn";
 import Home from "./Pages/Users/Home";
 import Activities from "./Pages/Users/Activities";
 import Profile from "./Pages/Users/Profile";
+import History from "./Pages/Users/History";
 
 //Admin Pages
 import Dashboard from "./Pages/Admin/Dashboard";
 import Users from "./Pages/Admin/UsersCrud";
+import Reports from "./Pages/Admin/Reports";
 
+//Secuirity
 import { AuthContext } from "./Components/AuthContext";
 import { PrivateRoute } from "./Components/AuthContext";
 import VerificationCode from "./Pages/Verification";
@@ -35,6 +38,7 @@ const Navigation = () => {
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />
         <Route path="/activities" element={<Activities />} />
+        <Route path="/history" element={<History />} />
       </Route>
       <Route element={<PrivateRoute allowedRoles={["1", "0"]} roleRedirects={roleRedirects} />}>
         <Route path="/profile" element={<Profile />} />
@@ -42,6 +46,7 @@ const Navigation = () => {
       <Route element={<PrivateRoute allowedRoles={["0"]} roleRedirects={roleRedirects} />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/reports" element={<Reports />} />
       </Route>
     </Routes>
   );

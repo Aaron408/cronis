@@ -74,6 +74,8 @@ export default function AdminHeader({ toggleSidebar }) {
               ? "Dashboard"
               : location.pathname == "/users"
               ? "Users"
+              : location.pathname == "/reports"
+              ? "Reports"
               : "No se sabe aún"}
           </h1>
         </div>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { FiPlus } from "react-icons/fi";
 import { MdOutlineKeyboardArrowLeft } from "react-icons/md";
+import { ActivitiesApi } from "../../api";
+import { toast } from "react-toastify";
 
 //Pages
 import Header from "../../Components/User/Header";
@@ -9,24 +11,21 @@ import SideBar from "../../Components/User/SideBar";
 export default function Home() {
   const [date, setDate] = useState(new Date());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [events, setEvents] = useState([]);
 
-  const events = [
-    {
-      time: "9:00 AM",
-      title: "Reunión de equipo",
-      description: "Discutir los objetivos semanales y asignar tareas.",
-    },
-    {
-      time: "11:00 AM",
-      title: "Revisión de proyecto",
-      description: "Analizar el progreso del proyecto actual con el cliente.",
-    },
-    {
-      time: "2:00 PM",
-      title: "Sesión de brainstorming",
-      description: "Generar ideas para la nueva campaña de marketing.",
-    },
-  ];
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      try {
+        const response = await ActivitiesApi.get("/api/schedule");
+        setEvents(response.data);
+      } catch (error) {
+        console.error("Error al obtener la agenda del usuario", error);
+        toast.error("Error al cargar la agenda");
+      }
+    };
+
+    fetchSchedule();
+  }, []);
 
   const renderCalendar = () => {
     const daysInMonth = new Date(
@@ -86,7 +85,7 @@ export default function Home() {
     <div className="flex h-screen flex-col">
       <Header onToggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
-      <SideBar isOpen={isSidebarOpen} onClose={closeSidebar} />
+        <SideBar isOpen={isSidebarOpen} onClose={closeSidebar} />
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
@@ -153,7 +152,7 @@ export default function Home() {
                 {events.map((event, index) => (
                   <div key={index} className="rounded-lg border p-4">
                     <h3 className="mb-2 text-lg font-semibold">
-                      {event.time} - {event.title}
+                      {event.start_time} - {event.title}
                     </h3>
                     <p className="text-sm text-gray-500">{event.description}</p>
                   </div>
