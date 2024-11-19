@@ -1,8 +1,7 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { MdMailOutline } from "react-icons/md";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { AuthContext } from "../Components/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { AuthApi } from "../api";
@@ -42,7 +41,7 @@ export default function SignUp() {
     const emailRegex =
       /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com|uteq.edu.mx)$/;
     if (!emailRegex.test(email)) {
-      toast.error("El correo debe ser una cuenta válida de Gmail o Hotmail.");
+      toast.error("El correo debe ser una cuenta válida de Gmail, Hotmail o uteq.edu.mx.");
       return;
     }
 

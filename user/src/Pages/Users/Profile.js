@@ -1,12 +1,13 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UsersApi } from "../../api";
 import { toast } from "react-toastify";
 
 // Icons
-import { IoCameraOutline } from "react-icons/io5";
+// import { IoCameraOutline } from "react-icons/io5";
 import { IoMdNotificationsOutline, IoIosArrowBack } from "react-icons/io";
-import { FaUser, FaClock, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
+import { FaClock, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -63,10 +64,10 @@ export default function Profile() {
 
   useEffect(() => {
     if (
-      usuario != usuarioCopy ||
-      currentPassword != "" ||
-      newPassword != "" ||
-      repeatPassword != ""
+      usuario !== usuarioCopy ||
+      currentPassword !== "" ||
+      newPassword !== "" ||
+      repeatPassword !== ""
     ) {
       setSaveChangues(true);
     } else {
@@ -182,10 +183,10 @@ export default function Profile() {
                   className="h-full w-full object-cover"
                 />
               </div>
-              <button className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
+              {/* <button className="font-semibold w-full px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center">
                 <IoCameraOutline className="inline-block mr-2 h-5 w-5" />
                 Cambiar foto
-              </button>
+              </button> */}
             </div>
           </div>
           <div className="bg-white border rounded-lg p-6">
@@ -538,7 +539,7 @@ export default function Profile() {
                 type="button"
                 onClick={handleSubmit}
                 className={`${
-                  saveChangues == false && "hidden"
+                  saveChangues === false && "hidden"
                 } font-semibold px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800`}
               >
                 Guardar cambios

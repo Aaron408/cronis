@@ -1,3 +1,5 @@
+/* eslint-disable eqeqeq */
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef } from "react";
 import Table, {
   AvatarCell,
@@ -39,6 +41,7 @@ const customStyles = {
 
 const Users = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [plans, setPlans] = useState([]);
   const [newName, setNewName] = useState("");
   const [newMail, setNewMail] = useState("");

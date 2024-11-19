@@ -1,6 +1,6 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef } from "react";
-import { FiPlus, FiEdit, FiTrash2 } from "react-icons/fi";
-import { MdOutlineKeyboardArrowLeft } from "react-icons/md";
+import { FiPlus } from "react-icons/fi";
 import { ActivitiesApi } from "../../api";
 
 //Pages

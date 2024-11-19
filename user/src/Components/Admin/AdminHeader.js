@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/alt-text */
 import React, { useEffect, useState, useRef, useContext } from "react";
 import { AuthContext } from "../AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -70,11 +71,11 @@ export default function AdminHeader({ toggleSidebar }) {
             <HiMenu className="h-7 w-7 mt-1" />
           </button>
           <h1 className="hidden md:flex text-2xl font-bold">
-            {location.pathname == "/dashboard"
+            {location.pathname === "/dashboard"
               ? "Dashboard"
-              : location.pathname == "/users"
+              : location.pathname === "/users"
               ? "Users"
-              : location.pathname == "/reports"
+              : location.pathname === "/reports"
               ? "Reports"
               : "No se sabe aún"}
           </h1>

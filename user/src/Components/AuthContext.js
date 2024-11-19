@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext } from "react";
 import { Navigate, Outlet, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { jwtDecode } from "jwt-decode";
 
 import { AuthApi } from "../api";
 
@@ -16,43 +15,40 @@ export const AuthProvider = ({ children }) => {
   });
 
   const login = async (email, password, rememberMe) => {
-  try {
-    const response = await AuthApi.get(
-      "/api/login", 
-      {
+    try {
+      const response = await AuthApi.get("/api/login", {
         params: {
           email,
           password,
-          rememberMe
-        }
-      },
-    );
-    
-    const { name, type, email: userEmail, token } = response.data;
-    console.log(response);
-    const userData = { name, type, email, token };
-    setUser(userData);
-    localStorage.setItem("cronisUsuario", JSON.stringify(userData));
-    toast.success("¡Inicio de sesión exitoso!");
+          rememberMe,
+        },
+      });
 
-    // Redirige según el tipo de usuario
-    if (type === "1") {
-      navigate("/home");
-    } else if (type == "0") {
-      navigate("/dashboard");
+      const { name, type, userEmail, suscription_plan, token } = response.data;
+      console.log(response);
+      const userData = { name, type, userEmail, suscription_plan, token };
+      setUser(userData);
+      localStorage.setItem("cronisUsuario", JSON.stringify(userData));
+      toast.success("¡Inicio de sesión exitoso!");
+
+      // Redirige según el tipo de usuario
+      if (type === "1") {
+        navigate("/home");
+      } else if (type === "0") {
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      console.error("Error during login:", error);
+      if (error.response && error.response.status === 401) {
+        toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
+      } else if (error.response && error.response.status === 402) {
+        toast.error("Cuenta existente sin registro de google!");
+      } else {
+        toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
+      }
+      throw error;
     }
-  } catch (error) {
-    console.error("Error during login:", error);
-    if (error.response && error.response.status === 401) {
-      toast.error("Credenciales incorrectas. Por favor, intente nuevamente.");
-    } else if (error.response && error.response.status === 402) {
-      toast.error("Cuenta existente sin registro de google!");
-    } else {
-      toast.error("Error al iniciar sesión. Por favor, intente nuevamente.");
-    }
-    throw error;
-  }
-};
+  };
 
   const logout = async () => {
     const userData = JSON.parse(localStorage.getItem("cronisUsuario"));
@@ -89,7 +85,7 @@ export const AuthProvider = ({ children }) => {
         idToken: credentialResponse,
       });
 
-      const { id, name, email, tipo, token } = response.data; // Extraer datos del usuario
+      const { tipo } = response.data; // Extraer datos del usuario
 
       if (response.status === 200 || response.status === 201) {
         // Almacena los datos de usuario directamente desde response.data

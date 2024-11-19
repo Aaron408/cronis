@@ -29,7 +29,7 @@ export const ActivitiesApi = axios.create({
   //Sin pool
   // https://vercel-authservice-ubuyl8xwl-aarons-projects-ab43df53.vercel.app
   //Con pool  
-  // https://activities-services-blqx69wtd-aarons-projects-ab43df53.vercel.app
+  // https://activities-services-bp09fxw4u-aarons-projects-ab43df53.vercel.app/
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
@@ -46,7 +46,7 @@ export const ReportsApi = axios.create({
   },
 });
 
-export const paymentApi = axios.create({
+export const SuscriptionApi = axios.create({
   baseURL: "http://localhost:5004",
   headers: {
     Authorization: `Bearer ${getToken()}`,
@@ -92,4 +92,4 @@ setupInterceptors(AuthApi);
 setupInterceptors(UsersApi);
 setupInterceptors(ActivitiesApi);
 setupInterceptors(ReportsApi);
-setupInterceptors(paymentApi);
+setupInterceptors(SuscriptionApi);

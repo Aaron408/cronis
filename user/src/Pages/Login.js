@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import { FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
