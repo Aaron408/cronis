@@ -17,9 +17,9 @@ export default function History() {
     setIsSidebarOpen(false);
   };
 
-  const userActivities = async () => {
+  const historyActivities = async () => {
     try {
-      const response = await ActivitiesApi.get("/api/userActivities");
+      const response = await ActivitiesApi.get("/api/history");
       const data = response.data;
       setEvents(data.length > 0 ? data : []);
     } catch (error) {
@@ -28,7 +28,7 @@ export default function History() {
   };
 
   useEffect(() => {
-    userActivities();
+    historyActivities();
   }, []);
 
   return (
@@ -50,11 +50,11 @@ export default function History() {
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-semibold">{event.title}</h3>
                     <span className="text-sm text-gray-500">
-                      {`${new Date(
-                        event.start_date
-                      ).toLocaleDateString()} - ${new Date(
-                        event.due_date
-                      ).toLocaleDateString()}`}
+                      {`${
+                        event.type === "Puntual"
+                          ? event.end_time
+                          : new Date(event.start_date).toLocaleDateString()
+                      } - ${new Date(event.due_date).toLocaleDateString()}`}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mb-4">

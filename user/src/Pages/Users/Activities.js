@@ -90,7 +90,9 @@ export default function Activities() {
 
   const confirmDeleteEvent = async () => {
     try {
-      await ActivitiesApi.post("/api/deleteActivity", { activityId: eventToDelete });
+      await ActivitiesApi.post("/api/deleteActivity", {
+        activityId: eventToDelete,
+      });
       toast.success("Actividad eliminada exitosamente!");
       userActivities();
       setIsDeleteModalOpen(false);
@@ -140,6 +142,7 @@ export default function Activities() {
     e.preventDefault();
     try {
       const response = await ActivitiesApi.post("/api/addActivity", newEvent);
+      toast.success("Actividad agregada exitosamente!");
       userActivities();
       setIsModalOpen(false);
     } catch (error) {
@@ -387,84 +390,115 @@ export default function Activities() {
                   </div>
                 </>
               )}
-              <div className="mb-4">
-                <label
-                  htmlFor="importance"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Importancia
-                </label>
-                <select
-                  id="importance"
-                  value={
-                    editingEvent ? editingEvent.importance : newEvent.importance
-                  }
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          importance: e.target.value,
-                        })
-                      : setNewEvent({ ...newEvent, importance: e.target.value })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  required
-                >
-                  <option value="0">Baja</option>
-                  <option value="1">Media</option>
-                  <option value="2">Alta</option>
-                </select>
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="start_date"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Fecha de inicio
-                </label>
-                <input
-                  type="date"
-                  id="start_date"
-                  value={
-                    editingEvent ? editingEvent.start_date : newEvent.start_date
-                  }
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          start_date: e.target.value,
-                        })
-                      : setNewEvent({ ...newEvent, start_date: e.target.value })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="due_date"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Fecha de entrega
-                </label>
-                <input
-                  type="date"
-                  id="due_date"
-                  value={
-                    editingEvent ? editingEvent.due_date : newEvent.due_date
-                  }
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          due_date: e.target.value,
-                        })
-                      : setNewEvent({ ...newEvent, due_date: e.target.value })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  required
-                />
-              </div>
+              {(editingEvent ? editingEvent.type : newEvent.type) !==
+                "Puntual" && (
+                <div>
+                  <div className="mb-4">
+                    <label
+                      htmlFor="importance"
+                      className="block text-md font-semibold mb-2"
+                    >
+                      Importancia
+                    </label>
+                    <select
+                      id="importance"
+                      value={
+                        editingEvent
+                          ? editingEvent.importance
+                          : newEvent.importance
+                      }
+                      onChange={(e) =>
+                        editingEvent
+                          ? setEditingEvent({
+                              ...editingEvent,
+                              importance: e.target.value,
+                            })
+                          : setNewEvent({
+                              ...newEvent,
+                              importance: e.target.value,
+                            })
+                      }
+                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
+                      required
+                    >
+                      <option value="0">Baja</option>
+                      <option value="1">Media</option>
+                      <option value="2">Alta</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+              {(editingEvent ? editingEvent.type : newEvent.type) !==
+                "Puntual" && (
+                <div>
+                  <div className="mb-4">
+                    <label
+                      htmlFor="start_date"
+                      className="block text-md font-semibold mb-2"
+                    >
+                      Fecha de inicio
+                    </label>
+                    <input
+                      type="date"
+                      id="start_date"
+                      value={
+                        editingEvent
+                          ? editingEvent.start_date
+                          : newEvent.type === "Puntual"
+                          ? newEvent.date
+                          : newEvent.start_date
+                      }
+                      onChange={(e) =>
+                        editingEvent
+                          ? setEditingEvent({
+                              ...editingEvent,
+                              start_date: e.target.value,
+                            })
+                          : setNewEvent({
+                              ...newEvent,
+                              start_date: e.target.value,
+                            })
+                      }
+                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label
+                      htmlFor="due_date"
+                      className="block text-md font-semibold mb-2"
+                    >
+                      Fecha de entrega
+                    </label>
+                    <input
+                      type="date"
+                      id="due_date"
+                      value={
+                        editingEvent
+                          ? editingEvent.due_date
+                          : newEvent.type === "Recurrente"
+                          ? newEvent.due_date
+                          : newEvent.type === "Puntual"
+                          ? newEvent.date
+                          : newEvent.start_date
+                      }
+                      onChange={(e) =>
+                        editingEvent
+                          ? setEditingEvent({
+                              ...editingEvent,
+                              due_date: e.target.value,
+                            })
+                          : setNewEvent({
+                              ...newEvent,
+                              due_date: e.target.value,
+                            })
+                      }
+                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-end space-x-3 mt-8 md:mt-0">
                 <button
                   type="button"

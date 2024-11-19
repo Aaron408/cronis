@@ -384,7 +384,7 @@ app.post("/api/sendVerificationCode", (req, res) => {
           from: `"CRONIS" <${process.env.NODE_EMAIL}>`,
           to: email,
           subject: "Código de verificación",
-          text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`, // Cuerpo del correo en texto plano
+          text: `Tu código de verificación para CRONIS es: ${verificationCode}. Este código expira en 3 minutos.`,
         };
 
         transporter.sendMail(mailOptions, (error, info) => {

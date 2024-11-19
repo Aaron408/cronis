@@ -7,6 +7,7 @@ const getToken = () => {
 
 export const AuthApi = axios.create({
   baseURL: "http://localhost:5000",
+  // https://vercel-authservice-ubuyl8xwl-aarons-projects-ab43df53.vercel.app
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',
@@ -25,6 +26,10 @@ export const UsersApi = axios.create({
 
 export const ActivitiesApi = axios.create({
   baseURL: "http://localhost:5002",
+  //Sin pool
+  // https://vercel-authservice-ubuyl8xwl-aarons-projects-ab43df53.vercel.app
+  //Con pool  
+  // https://activities-services-blqx69wtd-aarons-projects-ab43df53.vercel.app
   headers: {
     Authorization: `Bearer ${getToken()}`,
     'Access-Control-Allow-Origin': '*',

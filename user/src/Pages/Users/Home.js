@@ -13,17 +13,19 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [events, setEvents] = useState([]);
 
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      try {
-        const response = await ActivitiesApi.get("/api/schedule");
-        setEvents(response.data);
-      } catch (error) {
-        console.error("Error al obtener la agenda del usuario", error);
-        toast.error("Error al cargar la agenda");
-      }
-    };
+  const fetchSchedule = async () => {
+    try {
+      const response = await ActivitiesApi.get("/api/schedule");
+      setEvents(response.data);
+    } catch (error) {
+      console.error("Error al obtener la agenda del usuario", error);
+      console.error("Error details:", error.response ? error.response.data : error.message);
+      toast.error("Error al cargar la agenda");
+    }
+  };
 
+
+  useEffect(() => {
     fetchSchedule();
   }, []);
 
