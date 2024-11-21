@@ -49,7 +49,7 @@ function SideBar({ isOpen, onClose }) {
   }, [isModalOpen]);
 
   const handleSuccessfulPayment = () => {
-    const userData = JSON.parse(localStorage.getItem("cronisUsuario") || "{}");
+    const userData = JSON.parse(localStorage.getItem("cronisUsuario"));
     userData.suscription_plan = 2;
     localStorage.setItem("cronisUsuario", JSON.stringify(userData));
     setSubscriptionPlan(2);
@@ -146,7 +146,7 @@ function SideBar({ isOpen, onClose }) {
                 <li className="text-lg">Acceso a más actividades.</li>
                 <li className="text-lg">Mejor rendimiento y velocidad.</li>
                 <li className="text-lg">Soporte técnico prioritario.</li>
-                <li className="text-lg">Sin límite de actividades</li>
+                <li className="text-lg">Límite de actividades aumentado.</li>
               </ul>
             </div>
 

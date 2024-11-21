@@ -1,5 +1,5 @@
 const express = require("express");
-const mysql = require("mysql2");
+const mysql = require("mysql2/promise");
 const cors = require("cors");
 const crypto = require("crypto");
 
@@ -9,30 +9,48 @@ const app = express();
 const PORT = process.env.USER_PORT || 5001;
 
 app.use(express.json());
-
-// Activar CORS
 app.use(cors());
 
-// Configuración de la base de datos
-const db = mysql.createConnection({
+// Create a connection pool
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   charset: "utf8mb4",
+  waitForConnections: true,
+  connectionLimit: 5,
+  queueLimit: 0,
+  charset: "utf8mb4",
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("Error al conectar a la base de datos:", err);
-  } else {
-    console.log("Conexión exitosa a la base de datos!");
+// Function to test the database connection
+async function testConnection() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.query("SELECT 1 AS test");
+    console.log("Connected to the database successfully!");
+    connection.release();
+  } catch (error) {
+    console.error("Error connecting to the database:", error.message);
+    if (error.code === "ETIMEDOUT") {
+      setTimeout(() => {
+        console.log("Attempting to reconnect to the database...");
+        testConnection();
+      }, 5000);
+    }
   }
+}
+
+testConnection();
+
+app.get("/", (req, res) => {
+  res.send("Users service running!");
 });
 
 //------------- TOKEN VERIFICATION ----------------//
 
-const verifyToken = (allowedTypes) => (req, res, next) => {
+const verifyToken = (allowedTypes) => async (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
 
   if (!token) {
@@ -41,151 +59,129 @@ const verifyToken = (allowedTypes) => (req, res, next) => {
       .json({ message: "Acceso denegado. Token no proporcionado." });
   }
 
-  db.query(
-    `SELECT st.user_id, u.type, st.expires_date FROM session_token st JOIN users u on u.id = st.user_id WHERE token = ?`,
-    [token],
-    (error, session) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al verificar el token." });
-      }
+  try {
+    const [session] = await pool.query(
+      `SELECT st.user_id, u.type, st.expires_date FROM session_token st JOIN users u on u.id = st.user_id WHERE token = ?`,
+      [token]
+    );
 
-      if (session.length === 0) {
-        return res
-          .status(401)
-          .json({ message: "Token inválido o no encontrado." });
-      }
-
-      const sessionData = session[0];
-      const now = new Date();
-      if (new Date(sessionData.expires_date) < now) {
-        return res.status(401).json({ message: "Token ha expirado." });
-      }
-
-      // Verifica si el tipo de usuario está permitido
-      if (!allowedTypes.includes(sessionData.type)) {
-        return res
-          .status(403)
-          .json({ message: "Acceso denegado. Permisos insuficientes." });
-      }
-
-      // Si todo está bien, pasa al siguiente middleware
-      req.user = { id: sessionData.user_id, type: sessionData.type };
-      next();
+    if (session.length === 0) {
+      return res
+        .status(401)
+        .json({ message: "Token inválido o no encontrado." });
     }
-  );
+
+    const sessionData = session[0];
+    const now = new Date();
+    if (new Date(sessionData.expires_date) < now) {
+      return res.status(401).json({ message: "Token ha expirado." });
+    }
+
+    if (!allowedTypes.includes(sessionData.type)) {
+      return res
+        .status(403)
+        .json({ message: "Acceso denegado. Permisos insuficientes." });
+    }
+
+    req.user = { id: sessionData.user_id, type: sessionData.type };
+    next();
+  } catch (error) {
+    console.error("Error al verificar el token:", error);
+    res.status(500).json({ message: "Error al verificar el token." });
+  }
 };
 
 //----------------- PROFILE PAGE -----------------//
 
-app.post("/api/updateUser", verifyToken(["1"]), (req, res) => {
+app.post("/api/updateUser", verifyToken(["1"]), async (req, res) => {
   const userId = req.user.id;
   const { updateData } = req.body;
   const currentPassword = updateData.currentPassword;
   const newPassword = updateData.newPassword;
 
-  if (currentPassword && newPassword) {
-    const hashedPassword = crypto
-      .createHash("md5")
-      .update(currentPassword)
-      .digest("hex");
+  try {
+    if (currentPassword && newPassword) {
+      const hashedPassword = crypto
+        .createHash("md5")
+        .update(currentPassword)
+        .digest("hex");
 
-    const selectPasswordQuery = `SELECT password FROM users WHERE id = ?`;
+      const [results] = await pool.query(
+        `SELECT password FROM users WHERE id = ?`,
+        [userId]
+      );
 
-    db.query(selectPasswordQuery, userId, (err, results) => {
-      if (err) {
-        console.error("Database query error:", err);
-        return res.status(500).json({ error: "Internal server error" });
+      if (results.length > 0 && hashedPassword === results[0].password) {
+        const hashedNewPassword = crypto
+          .createHash("md5")
+          .update(newPassword)
+          .digest("hex");
+
+        delete updateData.currentPassword;
+        delete updateData.newPassword;
+        updateData.password = hashedNewPassword;
+
+        await pool.query(`UPDATE users SET ? WHERE id = ?`, [
+          updateData,
+          userId,
+        ]);
+        return res.status(200).json({ message: "User updated successfully" });
       } else {
-        if (results.length > 0 && hashedPassword === results[0].password) {
-          const hashedNewPassword = crypto
-            .createHash("md5")
-            .update(newPassword)
-            .digest("hex");
-
-          // Eliminar las contraseñas de updateData para construir la consulta de actualización
-          delete updateData.currentPassword;
-          delete updateData.newPassword;
-
-          // Añadir la nueva contraseña al objeto updateData
-          updateData.password = hashedNewPassword;
-
-          // Construir la consulta de actualización dinámica
-          const updateQuery = `UPDATE users SET ? WHERE id = ?`;
-
-          db.query(updateQuery, [updateData, userId], (err, result) => {
-            if (err) {
-              console.error("Error updating user:", err);
-              return res.status(500).json({ error: "Failed to update user" });
-            }
-            return res
-              .status(200)
-              .json({ message: "User updated successfully" });
-          });
-        } else {
-          // Las contraseñas no coinciden
-          return res.status(400).json({ error: "Incorrect current password" });
-        }
+        return res.status(400).json({ error: "Incorrect current password" });
       }
-    });
-  } else {
-    const updateQuery = `UPDATE users SET ? WHERE id = ?`;
-
-    db.query(updateQuery, [updateData, userId], (err, result) => {
-      if (err) {
-        console.error("Error updating user:", err);
-        return res.status(500).json({ error: "Failed to update user" });
-      }
+    } else {
+      await pool.query(`UPDATE users SET ? WHERE id = ?`, [updateData, userId]);
       return res.status(200).json({ message: "User updated successfully" });
-    });
+    }
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: "Failed to update user" });
   }
 });
 
-app.get("/api/userData", verifyToken(["1", "0"]), (req, res) => {
+app.get("/api/userData", verifyToken(["1", "0"]), async (req, res) => {
   const userId = req.user.id;
 
-  db.query(
-    "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
-    [userId],
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos del usuario" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
+  try {
+    const [results] = await pool.query(
+      "SELECT google_id, name, email, biography, profile_picture_url, notifications, emailnotifications, start_time, end_time FROM users WHERE id = ?",
+      [userId]
+    );
 
-      res.status(200).json(results[0]);
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
     }
-  );
+
+    res.status(200).json(results[0]);
+  } catch (error) {
+    console.error("Error al obtener datos del usuario:", error);
+    res.status(500).json({ message: "Error al obtener datos del usuario" });
+  }
 });
 
 //---------------- DASHBOARD PAGE -----------------//
-app.get("/api/adminData", verifyToken(["0"]), (req, res) => {
+
+app.get("/api/adminData", verifyToken(["0"]), async (req, res) => {
   const userId = req.user.id;
 
-  db.query(
-    "SELECT name, email, profile_picture_url FROM users WHERE id = ?",
-    [userId],
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos del usuario" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
+  try {
+    const [results] = await pool.query(
+      "SELECT name, email, profile_picture_url FROM users WHERE id = ?",
+      [userId]
+    );
 
-      res.status(200).json(results[0]);
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
     }
-  );
+
+    res.status(200).json(results[0]);
+  } catch (error) {
+    console.error("Error al obtener datos del usuario:", error);
+    res.status(500).json({ message: "Error al obtener datos del usuario" });
+  }
 });
 
-app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
+app.get("/api/dashboardStatistics", verifyToken(["0"]), async (req, res) => {
   const query = `
     SELECT 
       (SELECT COUNT(*) FROM users WHERE status != '2') AS total_users,
@@ -201,17 +197,10 @@ app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
       COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= CURDATE() AND (u.end_suscription IS NULL OR u.end_suscription > CURDATE()) AND MONTH(u.start_suscription) = MONTH(CURDATE()) AND YEAR(u.start_suscription) = YEAR(CURDATE())), 0) AS current_month_revenue
   `;
 
-  db.query(query, (error, results) => {
-    if (error) {
-      console.error("Error al obtener estadísticas del dashboard:", error);
-      return res
-        .status(500)
-        .json({ message: "Error al obtener estadísticas del dashboard" });
-    }
-
+  try {
+    const [results] = await pool.query(query);
     const data = results[0];
 
-    // Calculate percentage changes
     const calculatePercentageChange = (current, previous) => {
       if (previous > 0) {
         return ((current - previous) / previous) * 100;
@@ -255,10 +244,15 @@ app.get("/api/dashboardStatistics", verifyToken(["0"]), (req, res) => {
         percentageChange: revenuePercentageChange.toFixed(2),
       },
     });
-  });
+  } catch (error) {
+    console.error("Error al obtener estadísticas del dashboard:", error);
+    res
+      .status(500)
+      .json({ message: "Error al obtener estadísticas del dashboard" });
+  }
 });
 
-app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
+app.get("/api/graphicsData", verifyToken(["0"]), async (req, res) => {
   const queryUsers = `
     SELECT 
       m.mes,
@@ -298,28 +292,18 @@ app.get("/api/graphicsData", verifyToken(["0"]), (req, res) => {
     LIMIT 12;
   `;
 
-  db.query(queryUsers, (error, usersResults) => {
-    if (error) {
-      console.error("Error al obtener datos de usuarios:", error);
-      return res
-        .status(500)
-        .json({ message: "Error al obtener datos de usuarios" });
-    }
+  try {
+    const [usersResults] = await pool.query(queryUsers);
+    const [revenueResults] = await pool.query(queryRevenue);
 
-    db.query(queryRevenue, (error, revenueResults) => {
-      if (error) {
-        console.error("Error al obtener datos de ingresos:", error);
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos de ingresos" });
-      }
-
-      res.status(200).json({
-        usersData: usersResults,
-        revenueData: revenueResults,
-      });
+    res.status(200).json({
+      usersData: usersResults,
+      revenueData: revenueResults,
     });
-  });
+  } catch (error) {
+    console.error("Error al obtener datos gráficos:", error);
+    res.status(500).json({ message: "Error al obtener datos gráficos" });
+  }
 });
 
 app.get("/api/activity", verifyToken(["0"]), async (req, res) => {
@@ -357,8 +341,7 @@ app.get("/api/activity", verifyToken(["0"]), async (req, res) => {
           ELSE CONCAT(TIMESTAMPDIFF(YEAR, u.register_date, NOW()), ' años')
       END AS time_ago,
       'Ahora es miembro de Cronis' AS message
-    FROM 
-      users u
+    FROM users u
     ORDER BY 
       u.register_date DESC
   `;
@@ -387,36 +370,14 @@ app.get("/api/activity", verifyToken(["0"]), async (req, res) => {
   `;
 
   try {
-    const [activities, users, payments] = await Promise.all([
-      new Promise((resolve, reject) => {
-        db.query(queryActivities, (error, results) => {
-          if (error) reject(error);
-          else resolve(results);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.query(queryUsers, (error, results) => {
-          if (error) reject(error);
-          else resolve(results);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.query(queryPayments, (error, results) => {
-          if (error) reject(error);
-          else resolve(results);
-        });
-      }),
-    ]);
+    const [activities] = await pool.query(queryActivities);
+    const [users] = await pool.query(queryUsers);
+    const [payments] = await pool.query(queryPayments);
 
-    // Combine all results
     const allActivities = [...activities, ...users, ...payments];
-
-    // Sort by event_date in descending order
     allActivities.sort(
       (a, b) => new Date(b.event_date) - new Date(a.event_date)
     );
-
-    // Take only the first 10 items
     const recentActivities = allActivities.slice(0, 6);
 
     res.status(200).json(recentActivities);
@@ -429,36 +390,33 @@ app.get("/api/activity", verifyToken(["0"]), async (req, res) => {
 });
 
 //---------------- USERS CRUD PAGE -----------------//
-app.get("/api/users", verifyToken(["0"]), (req, res) => {
-  const userId = req.user.id;
 
-  db.query(
-    `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, 
-            us.suscription_plan,
-            us.start_suscription,
-            us.end_suscription,
-            DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
-            us.type AS rol,
-            us.status
-     FROM users us
-     WHERE us.status != '2';
-      ;`,
-    (error, results) => {
-      if (error) {
-        return res
-          .status(500)
-          .json({ message: "Error al obtener datos de usuarios" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "No hay usuarios que mostrar" });
-      }
+app.get("/api/users", verifyToken(["0"]), async (req, res) => {
+  try {
+    const [results] = await pool.query(
+      `SELECT us.id, us.name, us.email, us.profile_picture_url AS imgUrl, 
+              us.suscription_plan,
+              us.start_suscription,
+              us.end_suscription,
+              DATE_FORMAT(us.register_date, '%Y-%m-%d') AS register,
+              us.type AS rol,
+              us.status
+       FROM users us
+       WHERE us.status != '2'`
+    );
 
-      res.status(200).json(results);
+    if (results.length === 0) {
+      return res.status(404).json({ message: "No hay usuarios que mostrar" });
     }
-  );
+
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error al obtener datos de usuarios:", error);
+    res.status(500).json({ message: "Error al obtener datos de usuarios" });
+  }
 });
 
-app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
+app.post("/api/addUser", verifyToken(["0"]), async (req, res) => {
   const {
     name,
     email,
@@ -468,23 +426,19 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
     subscription_end_date,
   } = req.body;
 
-  // Validaciones para el formulario
   if (!name || !email || (!suscription_plan && type !== "1")) {
     return res
       .status(400)
       .json({ message: "Llena correctamente el formulario." });
   }
 
-  const registerDate = new Date().toISOString().slice(0, 10); // Fecha de registro en formato 'YYYY-MM-DD'
-
-  // Generar contraseña aleatoria
+  const registerDate = new Date().toISOString().slice(0, 10);
   const password = crypto.randomBytes(8).toString("hex");
   const hashedPassword = crypto
     .createHash("md5")
     .update(password)
     .digest("hex");
 
-  // Preparar los datos para la inserción
   const userData = [
     name,
     email,
@@ -494,7 +448,6 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
     hashedPassword,
   ];
 
-  // Agregar fechas de suscripción si el plan es premium (asumiendo que el ID del plan premium es "2")
   let query = `INSERT INTO users (name, email, type, suscription_plan, register_date, password`;
   if (suscription_plan === 2) {
     query += `, start_suscription, end_suscription`;
@@ -503,83 +456,65 @@ app.post("/api/addUser", verifyToken(["0"]), (req, res) => {
       subscription_end_date || null
     );
   }
-  query += `) VALUES (?, ?, ?, ?, ?, ?`;
-  if (suscription_plan === 2) {
-    query += `, ?, ?`;
-  }
-  query += `)`;
+  query += `) VALUES (${userData.map(() => "?").join(", ")})`;
 
-  // Insertar nuevo usuario en la base de datos
-  db.query(query, userData, (error, results) => {
-    if (error) {
-      console.error("Error al agregar usuario:", error);
-      return res
-        .status(500)
-        .json({ message: "Error al agregar el usuario a la base de datos" });
-    }
+  try {
+    await pool.query(query, userData);
     res.status(201).json({
       message: "Usuario agregado exitosamente",
-      password: password, // Enviar la contraseña sin hash al cliente
+      password: password,
     });
-  });
+  } catch (error) {
+    console.error("Error al agregar usuario:", error);
+    res
+      .status(500)
+      .json({ message: "Error al agregar el usuario a la base de datos" });
+  }
 });
 
-app.post("/api/updateUserCRUD", verifyToken(["0"]), (req, res) => {
-  const {
-    id,
-    name,
-    email,
-    suscription_plan,
-    status,
-  } = req.body.selectedUser;
+app.post("/api/updateUserCRUD", verifyToken(["0"]), async (req, res) => {
+  const { id, name, email, suscription_plan, status } = req.body.selectedUser;
 
-  // Consulta de actualización
-  const query = `
-    UPDATE users 
-    SET name = ?, email = ?, suscription_plan = ?, status = ?
-    WHERE 
-      id = ?
-  `;
-
-  const userData = [name, email, suscription_plan, status, id];
-
-  // Ejecutar la consulta
-  db.query(query, userData, (error, results) => {
-    if (error) {
-      console.error("Error al actualizar usuario:", error);
-      return res
-        .status(500)
-        .json({
-          message: "Error al actualizar el usuario en la base de datos",
-        });
-    }
+  try {
+    await pool.query(
+      `UPDATE users 
+       SET name = ?, email = ?, suscription_plan = ?, status = ?
+       WHERE id = ?`,
+      [name, email, suscription_plan, status, id]
+    );
     res.status(200).json({ message: "Usuario actualizado exitosamente" });
-  });
+  } catch (error) {
+    console.error("Error al actualizar usuario:", error);
+    res
+      .status(500)
+      .json({ message: "Error al actualizar el usuario en la base de datos" });
+  }
 });
 
-app.post("/api/deleteUser", verifyToken(["0"]), (req, res) => {
+app.post("/api/deleteUser", verifyToken(["0"]), async (req, res) => {
   const { userId } = req.body;
 
-  const query = `UPDATE users SET status = ? WHERE id = ?`;
-  const userData = [2, userId];
+  try {
+    const [result] = await pool.query(
+      `UPDATE users SET status = ? WHERE id = ?`,
+      [2, userId]
+    );
 
-  db.query(query, userData, (error, results) => {
-    if (error) {
-      console.error("Error al realizar el borrado lógico del usuario:", error);
-      return res.status(500).json({
-        message: "Error al realizar el borrado lógico del usuario en la base de datos",
-      });
-    }
-
-    // Verificar si la actualización afectó alguna fila
-    if (results.affectedRows === 0) {
+    if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    res.status(200).json({ message: "Usuario eliminado lógicamente exitosamente" });
-  });
+    res
+      .status(200)
+      .json({ message: "Usuario eliminado lógicamente exitosamente" });
+  } catch (error) {
+    console.error("Error al realizar el borrado lógico del usuario:", error);
+    res.status(500).json({
+      message:
+        "Error al realizar el borrado lógico del usuario en la base de datos",
+    });
+  }
 });
-
 
 // Levantar el servidor
 app.listen(PORT, () => {

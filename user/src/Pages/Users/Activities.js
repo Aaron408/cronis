@@ -1,12 +1,10 @@
-/* eslint-disable no-unused-vars */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { FiPlus } from "react-icons/fi";
 import { ActivitiesApi } from "../../api";
-
-//Pages
+import { toast } from "react-toastify";
 import Header from "../../Components/User/Header";
 import SideBar from "../../Components/User/SideBar";
-import { toast } from "react-toastify";
+import ActivityModal from "../../Components/User/ActivityModal";
 
 export default function Activities() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -15,56 +13,14 @@ export default function Activities() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [events, setEvents] = useState([]);
   const [eventToDelete, setEventToDelete] = useState(null);
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    importance: "0",
-    status: "0",
-    start_date: new Date().toISOString().split("T")[0],
-    due_date: new Date().toISOString().split("T")[0],
-    type: "Recurrente",
-    date: new Date().toISOString().split("T")[0],
-    start_time: "",
-    end_time: "",
-  });
-  const modalRef = useRef(null);
-  const deleteModalRef = useRef(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        setIsModalOpen(false);
-      }
-      if (
-        deleteModalRef.current &&
-        !deleteModalRef.current.contains(event.target)
-      ) {
-        setIsDeleteModalOpen(false);
-      }
-    };
-
-    if (isModalOpen || isDeleteModalOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isModalOpen, isDeleteModalOpen]);
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   const userActivities = async () => {
     try {
       const response = await ActivitiesApi.get("/api/userActivities");
-      const data = response.data;
-      setEvents(data.length > 0 ? data : []);
+      setEvents(response.data.length > 0 ? response.data : []);
     } catch (error) {
       console.error("Error al obtener los datos del usuario", error);
     }
@@ -103,50 +59,55 @@ export default function Activities() {
     }
   };
 
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (editingEvent) {
-      try {
-        const response = await ActivitiesApi.post(
-          `/api/updateActivities`,
-          editingEvent
-        );
-        toast.success("Actividad actualizada exitosamente!.");
-        userActivities();
-        setIsModalOpen(false);
-        setEditingEvent(null);
-      } catch (error) {
-        console.error("Error al actualizar la actividad", error);
-      }
-    }
-  };
-
   const handleAddEvent = () => {
     setEditingEvent(null);
-    setNewEvent({
-      title: "",
-      description: "",
-      importance: "0",
-      status: "0",
-      start_date: new Date().toISOString().split("T")[0],
-      due_date: new Date().toISOString().split("T")[0],
-      type: "Recurrente",
-      date: new Date().toISOString().split("T")[0],
-      start_time: "",
-      end_time: "",
-    });
-    setIsModalOpen(true);
+    ActivitiesApi.get("/api/activitiesData")
+      .then((response) => {
+        if (response.data.message === "Puedes abrir el modal") {
+          setIsModalOpen(true);
+        }
+      })
+      .catch((error) => {
+        if (error.response.status === 403) {
+          toast.warning(error.response.data.message);
+        } else {
+          toast.error("Error al intentar añadir una actividad.");
+        }
+      });
   };
 
-  const handleSaveNewEvent = async (e) => {
-    e.preventDefault();
+  const handleSaveEvent = async (eventData) => {
     try {
-      const response = await ActivitiesApi.post("/api/addActivity", newEvent);
-      toast.success("Actividad agregada exitosamente!");
+      if (editingEvent) {
+        await ActivitiesApi.post(`/api/updateActivities`, eventData);
+        toast.success("Actividad actualizada exitosamente!");
+      } else {
+        await ActivitiesApi.post("/api/addActivity", eventData);
+        toast.success("Actividad agregada exitosamente!");
+      }
       userActivities();
       setIsModalOpen(false);
+      setEditingEvent(null);
     } catch (error) {
-      console.error("Error al agregar la actividad", error);
+      if (error.response) {
+        if (error.response.status === 403) {
+          toast.error(error.response.data.message);
+        } else if (
+          error.response.status === 400 &&
+          error.response.data.message ===
+            "Debe configurar su horario de trabajo"
+        ) {
+          toast.error(
+            "Debe configurar su horario de trabajo antes de agregar actividades."
+          );
+        } else {
+          console.error("Error al guardar la actividad", error);
+          toast.error("Error al guardar la actividad");
+        }
+      } else {
+        console.error("Error inesperado", error);
+        toast.error("Error inesperado al guardar la actividad");
+      }
     }
   };
 
@@ -167,9 +128,10 @@ export default function Activities() {
                     <h3 className="text-lg font-semibold">{event.title}</h3>
                     <span className="text-sm text-gray-500">
                       {event.type === "Puntual"
-                        ? `${event.start_time}/${event.end_time} - ${new Date(
-                            event.date
-                          ).toLocaleDateString()}`
+                        ? `${event.start_time}/${event.end_time} - ${event.date
+                            .split("-")
+                            .reverse()
+                            .join("/")}`
                         : "Recurrente"}
                     </span>
                   </div>
@@ -212,317 +174,18 @@ export default function Activities() {
         <FiPlus className="h-8 w-8 m-auto" />
       </button>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 overflow-auto">
-          <div
-            className="bg-white p-6 rounded-lg w-96 md:w-[50%] max-h-[90vh] overflow-y-auto"
-            ref={modalRef}
-          >
-            <h2 className="text-2xl font-bold mb-4">
-              {editingEvent ? "Editar Actividad" : "Agregar Actividad"}
-            </h2>
-            <form onSubmit={editingEvent ? handleSaveEdit : handleSaveNewEvent}>
-              <div className="mb-4">
-                <label
-                  htmlFor="title"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Título
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  value={editingEvent ? editingEvent.title : newEvent.title}
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          title: e.target.value,
-                        })
-                      : setNewEvent({ ...newEvent, title: e.target.value })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="description"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Descripción
-                </label>
-                <textarea
-                  id="description"
-                  value={
-                    editingEvent
-                      ? editingEvent.description
-                      : newEvent.description
-                  }
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          description: e.target.value,
-                        })
-                      : setNewEvent({
-                          ...newEvent,
-                          description: e.target.value,
-                        })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  rows={3}
-                  required
-                ></textarea>
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="type"
-                  className="block text-md font-semibold mb-2"
-                >
-                  Tipo de actividad
-                </label>
-                <select
-                  id="type"
-                  value={editingEvent ? editingEvent.type : newEvent.type}
-                  onChange={(e) =>
-                    editingEvent
-                      ? setEditingEvent({
-                          ...editingEvent,
-                          type: e.target.value,
-                        })
-                      : setNewEvent({ ...newEvent, type: e.target.value })
-                  }
-                  className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                  required
-                >
-                  <option value="Puntual">Puntual</option>
-                  <option value="Recurrente">Recurrente</option>
-                </select>
-              </div>
-              {(editingEvent ? editingEvent.type : newEvent.type) ===
-                "Puntual" && (
-                <>
-                  <div className="mb-4">
-                    <label
-                      htmlFor="date"
-                      className="block text-md font-semibold mb-2"
-                    >
-                      Fecha
-                    </label>
-                    <input
-                      type="date"
-                      id="date"
-                      value={editingEvent ? editingEvent.date : newEvent.date}
-                      onChange={(e) =>
-                        editingEvent
-                          ? setEditingEvent({
-                              ...editingEvent,
-                              date: e.target.value,
-                            })
-                          : setNewEvent({ ...newEvent, date: e.target.value })
-                      }
-                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:mb-5">
-                      <label
-                        htmlFor="start_time"
-                        className="block text-md font-semibold mb-2"
-                      >
-                        Hora de inicio
-                      </label>
-                      <input
-                        type="time"
-                        id="start_time"
-                        value={
-                          editingEvent
-                            ? editingEvent.start_time
-                            : newEvent.start_time
-                        }
-                        onChange={(e) =>
-                          editingEvent
-                            ? setEditingEvent({
-                                ...editingEvent,
-                                start_time: e.target.value,
-                              })
-                            : setNewEvent({
-                                ...newEvent,
-                                start_time: e.target.value,
-                              })
-                        }
-                        className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                        required
-                      />
-                    </div>
-                    <div className="md:mb-8">
-                      <label
-                        htmlFor="end_time"
-                        className="block text-md font-semibold mb-2"
-                      >
-                        Hora de fin
-                      </label>
-                      <input
-                        type="time"
-                        id="end_time"
-                        value={
-                          editingEvent
-                            ? editingEvent.end_time
-                            : newEvent.end_time
-                        }
-                        onChange={(e) =>
-                          editingEvent
-                            ? setEditingEvent({
-                                ...editingEvent,
-                                end_time: e.target.value,
-                              })
-                            : setNewEvent({
-                                ...newEvent,
-                                end_time: e.target.value,
-                              })
-                        }
-                        className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                        required
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-              {(editingEvent ? editingEvent.type : newEvent.type) !==
-                "Puntual" && (
-                <div>
-                  <div className="mb-4">
-                    <label
-                      htmlFor="importance"
-                      className="block text-md font-semibold mb-2"
-                    >
-                      Importancia
-                    </label>
-                    <select
-                      id="importance"
-                      value={
-                        editingEvent
-                          ? editingEvent.importance
-                          : newEvent.importance
-                      }
-                      onChange={(e) =>
-                        editingEvent
-                          ? setEditingEvent({
-                              ...editingEvent,
-                              importance: e.target.value,
-                            })
-                          : setNewEvent({
-                              ...newEvent,
-                              importance: e.target.value,
-                            })
-                      }
-                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                      required
-                    >
-                      <option value="0">Baja</option>
-                      <option value="1">Media</option>
-                      <option value="2">Alta</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-              {(editingEvent ? editingEvent.type : newEvent.type) !==
-                "Puntual" && (
-                <div>
-                  <div className="mb-4">
-                    <label
-                      htmlFor="start_date"
-                      className="block text-md font-semibold mb-2"
-                    >
-                      Fecha de inicio
-                    </label>
-                    <input
-                      type="date"
-                      id="start_date"
-                      value={
-                        editingEvent
-                          ? editingEvent.start_date
-                          : newEvent.type === "Puntual"
-                          ? newEvent.date
-                          : newEvent.start_date
-                      }
-                      onChange={(e) =>
-                        editingEvent
-                          ? setEditingEvent({
-                              ...editingEvent,
-                              start_date: e.target.value,
-                            })
-                          : setNewEvent({
-                              ...newEvent,
-                              start_date: e.target.value,
-                            })
-                      }
-                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label
-                      htmlFor="due_date"
-                      className="block text-md font-semibold mb-2"
-                    >
-                      Fecha de entrega
-                    </label>
-                    <input
-                      type="date"
-                      id="due_date"
-                      value={
-                        editingEvent
-                          ? editingEvent.due_date
-                          : newEvent.type === "Recurrente"
-                          ? newEvent.due_date
-                          : newEvent.type === "Puntual"
-                          ? newEvent.date
-                          : newEvent.start_date
-                      }
-                      onChange={(e) =>
-                        editingEvent
-                          ? setEditingEvent({
-                              ...editingEvent,
-                              due_date: e.target.value,
-                            })
-                          : setNewEvent({
-                              ...newEvent,
-                              due_date: e.target.value,
-                            })
-                      }
-                      className="border-gray-300 shadow-sm w-full px-4 py-2 border rounded-md"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-end space-x-3 mt-8 md:mt-0">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
-                >
-                  {editingEvent ? "Guardar cambios" : "Agregar actividad"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ActivityModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveEvent}
+        editingEvent={editingEvent}
+      />
+
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg w-96" ref={deleteModalRef}>
+          <div className="bg-white p-6 rounded-lg w-96">
             <h2 className="text-2xl font-bold mb-4">Confirmar Eliminación</h2>
-            <p className="mb-6">¿Estás seguro de eliminar este usuario?</p>
+            <p className="mb-6">¿Estás seguro de eliminar esta actividad?</p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}

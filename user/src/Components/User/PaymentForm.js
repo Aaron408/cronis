@@ -39,7 +39,7 @@ function PaymentForm({ onClose, onSuccess }) {
     try {
       const amount = 119.99 * 100; // Convertir a centavos
 
-      // Crear el intent de pago desde el backend
+      // Crear el intento de pago desde el backend
       const response = await SuscriptionApi.post("/api/create-payment", {
         amount: amount,
         currency: "mxn",
@@ -70,23 +70,31 @@ function PaymentForm({ onClose, onSuccess }) {
       setSuccessMessage("Suscripción realizada exitosamente!");
       toast.success("Suscripción realizada exitosamente!");
 
-      // Update localStorage
+      // Actualizar localStorage
       const userData = JSON.parse(
         localStorage.getItem("cronisUsuario") || "{}"
       );
       userData.suscription_plan = 2;
       localStorage.setItem("cronisUsuario", JSON.stringify(userData));
 
-      // Call onSuccess callback
+      // Llamar al callback de éxito
       onSuccess();
 
-      // Close the modal after a short delay
+      // Cerrar el modal después de un corto retraso
       setTimeout(() => {
         onClose();
       }, 2000);
     } catch (error) {
-      setErrorMessage("No se completó la suscripción: " + error.message);
-      toast.error("No se completó la suscripción");
+      if (
+        error.response &&
+        error.response.data.error ===
+          "El usuario ya tiene una suscripción activa."
+      ) {
+        toast.warning("El usuario ya tiene una suscripción activa.");
+      } else {
+        setErrorMessage("No se completó la suscripción: " + error.message);
+        toast.error("No se completó la suscripción");
+      }
     } finally {
       setIsProcessing(false);
     }
