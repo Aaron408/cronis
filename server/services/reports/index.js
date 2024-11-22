@@ -44,6 +44,10 @@ async function testConnection() {
 
 testConnection();
 
+app.get("/", (req, res) => {
+  res.send("Reports service running!");
+});
+
 //--------------- TOKEN VERIFICATION ----------------//
 
 const verifyToken = (allowedTypes) => async (req, res, next) => {

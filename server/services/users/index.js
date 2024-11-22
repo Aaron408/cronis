@@ -184,17 +184,55 @@ app.get("/api/adminData", verifyToken(["0"]), async (req, res) => {
 app.get("/api/dashboardStatistics", verifyToken(["0"]), async (req, res) => {
   const query = `
     SELECT 
-      (SELECT COUNT(*) FROM users WHERE status != '2') AS total_users,
-      (SELECT COUNT(*) FROM users WHERE status = '0' AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_users,
-      (SELECT COUNT(*) FROM users WHERE status = '0' AND MONTH(register_date) = MONTH(CURDATE()) AND YEAR(register_date) = YEAR(CURDATE())) AS current_month_users,
-      
-      (SELECT COUNT(*) FROM activity WHERE status = '0') AS total_activities,
-      (SELECT COUNT(*) FROM activity WHERE status = '0' AND due_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_activities,
-      (SELECT COUNT(*) FROM activity WHERE status = '0' AND MONTH(due_date) = MONTH(CURDATE()) AND YEAR(due_date) = YEAR(CURDATE())) AS current_month_activities,
-      
-      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= CURDATE() AND (u.end_suscription IS NULL OR u.end_suscription > CURDATE())), 0) AS total_revenue,
-      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH) AND (u.end_suscription IS NULL OR u.end_suscription > LAST_DAY(CURDATE() - INTERVAL 1 MONTH))), 0) AS previous_month_revenue,
-      COALESCE((SELECT SUM(sp.price) FROM users u JOIN subscription_plan sp ON u.suscription_plan = sp.id WHERE u.start_suscription <= CURDATE() AND (u.end_suscription IS NULL OR u.end_suscription > CURDATE()) AND MONTH(u.start_suscription) = MONTH(CURDATE()) AND YEAR(u.start_suscription) = YEAR(CURDATE())), 0) AS current_month_revenue
+    -- Total de usuarios
+    (SELECT COUNT(*) FROM users WHERE status != '2') AS total_users,
+    -- Usuarios registrados el mes pasado
+    (SELECT COUNT(*) 
+     FROM users 
+     WHERE status = '0' 
+       AND register_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH) 
+       AND MONTH(register_date) = MONTH(CURDATE() - INTERVAL 1 MONTH) 
+       AND YEAR(register_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_users,
+    -- Usuarios registrados el mes actual
+    (SELECT COUNT(*) 
+     FROM users 
+     WHERE status = '0' 
+       AND MONTH(register_date) = MONTH(CURDATE()) 
+       AND YEAR(register_date) = YEAR(CURDATE())) AS current_month_users,
+
+    -- Total de actividades
+    (SELECT COUNT(*) 
+     FROM activity 
+     WHERE status = '0') AS total_activities,
+    -- Actividades del mes pasado
+    (SELECT COUNT(*) 
+     FROM activity 
+     WHERE status = '0' 
+       AND due_date <= LAST_DAY(CURDATE() - INTERVAL 1 MONTH) 
+       AND MONTH(due_date) = MONTH(CURDATE() - INTERVAL 1 MONTH) 
+       AND YEAR(due_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_activities,
+    -- Actividades del mes actual
+    (SELECT COUNT(*) 
+     FROM activity 
+     WHERE status = '0' 
+       AND MONTH(due_date) = MONTH(CURDATE()) 
+       AND YEAR(due_date) = YEAR(CURDATE())) AS current_month_activities,
+
+    -- Ingresos totales
+    (SELECT COALESCE(SUM(amount), 0) 
+     FROM historical_payment) AS total_revenue,
+    -- Ingresos del mes pasado
+    (SELECT COALESCE(SUM(amount), 0) 
+     FROM historical_payment 
+     WHERE 
+       MONTH(payment_date) = MONTH(CURDATE() - INTERVAL 1 MONTH) 
+       AND YEAR(payment_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)) AS previous_month_revenue,
+    -- Ingresos del mes actual
+    (SELECT COALESCE(SUM(amount), 0) 
+     FROM historical_payment 
+     WHERE 
+       MONTH(payment_date) = MONTH(CURDATE()) 
+       AND YEAR(payment_date) = YEAR(CURDATE())) AS current_month_revenue;
   `;
 
   try {
@@ -274,7 +312,7 @@ app.get("/api/graphicsData", verifyToken(["0"]), async (req, res) => {
   const queryRevenue = `
     SELECT 
       DATE_FORMAT(m.month_start, '%Y-%m') AS month,
-      COALESCE(SUM(sp.price), 0) AS monthly_revenue
+      COALESCE(SUM(hp.amount), 0) AS monthly_revenue
     FROM (
       SELECT LAST_DAY(CURDATE()) - INTERVAL n MONTH + INTERVAL 1 DAY AS month_start,
             LAST_DAY(CURDATE() - INTERVAL n MONTH) AS month_end
@@ -284,17 +322,15 @@ app.get("/api/graphicsData", verifyToken(["0"]), async (req, res) => {
           UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
       ) months
     ) m
-    LEFT JOIN users u ON u.start_suscription <= m.month_end
-      AND (u.end_suscription IS NULL OR u.end_suscription > m.month_start)
-    LEFT JOIN subscription_plan sp ON u.suscription_plan = sp.id
+    LEFT JOIN historical_payment hp ON m.month_end >= hp.payment_date
     GROUP BY m.month_start
     ORDER BY m.month_start DESC
-    LIMIT 12;
   `;
 
   try {
     const [usersResults] = await pool.query(queryUsers);
     const [revenueResults] = await pool.query(queryRevenue);
+    console.log(revenueResults);
 
     res.status(200).json({
       usersData: usersResults,

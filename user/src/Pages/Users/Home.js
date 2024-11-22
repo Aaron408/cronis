@@ -63,11 +63,28 @@ export default function Home() {
     try {
       await ActivitiesApi.post("/api/addActivity", eventData);
       toast.success("Actividad agregada exitosamente!");
-      fetchSchedule(selectedDate);
+      fetchSchedule(currentDate);
       setIsModalOpen(false);
     } catch (error) {
-      console.error("Error al guardar la actividad", error);
-      toast.error("Error al guardar la actividad");
+      if (error.response) {
+        switch (error.response.status) {
+          case 400:
+            toast.error(error.response.data.message);
+            break;
+          case 403:
+            toast.error(error.response.data.message);
+            break;
+          case 409:
+            toast.error(error.response.data.message);
+            break;
+          default:
+            console.error("Error al guardar la actividad", error);
+            toast.error("Error al guardar la actividad");
+        }
+      } else {
+        console.error("Error inesperado", error);
+        toast.error("Error inesperado al guardar la actividad");
+      }
     }
   };
 

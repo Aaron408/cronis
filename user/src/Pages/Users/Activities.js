@@ -61,19 +61,7 @@ export default function Activities() {
 
   const handleAddEvent = () => {
     setEditingEvent(null);
-    ActivitiesApi.get("/api/activitiesData")
-      .then((response) => {
-        if (response.data.message === "Puedes abrir el modal") {
-          setIsModalOpen(true);
-        }
-      })
-      .catch((error) => {
-        if (error.response.status === 403) {
-          toast.warning(error.response.data.message);
-        } else {
-          toast.error("Error al intentar añadir una actividad.");
-        }
-      });
+    setIsModalOpen(true);
   };
 
   const handleSaveEvent = async (eventData) => {
@@ -90,19 +78,19 @@ export default function Activities() {
       setEditingEvent(null);
     } catch (error) {
       if (error.response) {
-        if (error.response.status === 403) {
-          toast.error(error.response.data.message);
-        } else if (
-          error.response.status === 400 &&
-          error.response.data.message ===
-            "Debe configurar su horario de trabajo"
-        ) {
-          toast.error(
-            "Debe configurar su horario de trabajo antes de agregar actividades."
-          );
-        } else {
-          console.error("Error al guardar la actividad", error);
-          toast.error("Error al guardar la actividad");
+        switch (error.response.status) {
+          case 400:
+            toast.error(error.response.data.message);
+            break;
+          case 403:
+            toast.error(error.response.data.message);
+            break;
+          case 409:
+            toast.error(error.response.data.message);
+            break;
+          default:
+            console.error("Error al guardar la actividad", error);
+            toast.error("Error al guardar la actividad");
         }
       } else {
         console.error("Error inesperado", error);

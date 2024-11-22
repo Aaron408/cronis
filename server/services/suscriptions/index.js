@@ -45,6 +45,10 @@ async function testConnection() {
 
 testConnection();
 
+app.get("/", (req, res) => {
+  res.send("Suscription service running!");
+});
+
 //------------- Token verification ----------------//
 const verifyToken = (allowedTypes) => async (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
@@ -96,7 +100,7 @@ app.post("/api/create-payment", verifyToken(["1"]), async (req, res) => {
     // Verificar el plan de suscripción actual del usuario
     const connection = await pool.getConnection();
     const [rows] = await connection.query(
-      "SELECT suscription_plan FROM users WHERE id = ?",
+      `SELECT suscription_plan FROM users WHERE id = ? AND type = '1' AND status = '0'`,
       [userId]
     );
     connection.release();
