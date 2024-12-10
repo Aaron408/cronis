@@ -137,8 +137,8 @@ async function scheduleActivities(userId) {
           a.start_date, 
           a.due_date, 
           a.status, 
-          s.start_time, 
-          s.end_time
+          COALESCE(s.start_time, NULL) AS start_time, 
+          COALESCE(s.end_time, NULL) AS end_time
       FROM 
           activity a
       LEFT JOIN 
@@ -158,9 +158,14 @@ async function scheduleActivities(userId) {
       WHERE 
           a.user_id = ? 
           AND a.status NOT IN ('2', '3')
+          AND a.id NOT IN (
+              SELECT DISTINCT activity_id
+              FROM schedule
+              WHERE type = 'Puntual'
+          )
       ORDER BY 
           a.importance DESC, 
-          a.due_date ASC;
+          a.due_date ASC
       ;
       `,
       [userId]
@@ -183,14 +188,15 @@ async function scheduleActivities(userId) {
     // 5. Borrar actividades recurrentes existentes en el schedule
     await connection.query(
       `DELETE s FROM schedule s
-       INNER JOIN activity a ON a.id = s.activity_id
-       WHERE s.user_id = ? AND s.type = 'Recurrente' AND a.status NOT IN ('2', '3')`,
+        LEFT JOIN activity a ON a.id = s.activity_id
+        WHERE s.user_id = ? AND (s.type IN ('Recurrente', 'Descanso') OR (s.type = 'Recurrente' AND a.status NOT IN ('2', '3')))`,
       [userId]
     );
 
     // 6. Programar actividades usando programación dinámica
-    console.log(recurringActivities);
-    const schedule = dynamicProgrammingSchedule(
+    console.log("Recurrentes: ", recurringActivities);
+    console.log("Puntuales: ", punctualActivities);
+    const schedule = improvedDynamicProgrammingSchedule(
       recurringActivities,
       punctualActivities,
       startDate,
@@ -229,7 +235,7 @@ async function scheduleActivities(userId) {
   }
 }
 
-function dynamicProgrammingSchedule(
+function improvedDynamicProgrammingSchedule(
   recurringActivities,
   punctualActivities,
   startDate,
@@ -237,10 +243,14 @@ function dynamicProgrammingSchedule(
   workStartTime,
   workEndTime
 ) {
+  console.log("Starting improvedDynamicProgrammingSchedule");
+  console.log("Recurring Activities:", JSON.stringify(recurringActivities));
+  console.log("Punctual Activities:", JSON.stringify(punctualActivities));
+
   const schedule = {};
   const workStartMoment = moment(workStartTime, "HH:mm:ss");
   const workEndMoment = moment(workEndTime, "HH:mm:ss");
-  const workDurationMinutes = workEndMoment.diff(workStartMoment, "minutes");
+  const recentlyScheduledActivities = new Set();
 
   for (
     let currentDate = new Date(startDate);
@@ -248,66 +258,253 @@ function dynamicProgrammingSchedule(
     currentDate.setDate(currentDate.getDate() + 1)
   ) {
     const dateKey = moment(currentDate).format("YYYY-MM-DD");
+    console.log(`Processing date: ${dateKey}`);
+
     const availableSlots = getAvailableTimeSlots(
       currentDate,
       workStartTime,
       workEndTime,
       punctualActivities
     );
+    console.log("Available slots:", JSON.stringify(availableSlots));
 
-    // Inicializar la matriz de programación dinámica
-    const dp = new Array(recurringActivities.length + 1)
-      .fill(null)
-      .map(() => new Array(workDurationMinutes + 1).fill(0));
-
-    // Llenar la matriz de programación dinámica
-    for (let i = 1; i <= recurringActivities.length; i++) {
-      const activity = recurringActivities[i - 1];
-      const activityDuration = calculateDuration(activity.importance);
-
-      for (let j = 1; j <= workDurationMinutes; j++) {
-        if (
-          activityDuration <= j &&
-          isActivityValidForDate(activity, currentDate)
-        ) {
-          dp[i][j] = Math.max(
-            dp[i - 1][j],
-            dp[i - 1][j - activityDuration] + activity.importance
-          );
-        } else {
-          dp[i][j] = dp[i - 1][j];
-        }
-      }
-    }
-
-    // Reconstruir la solución óptima
-    const optimalSchedule = [];
-    let i = recurringActivities.length;
-    let j = workDurationMinutes;
-
-    while (i > 0 && j > 0) {
-      if (dp[i][j] !== dp[i - 1][j]) {
-        const activity = recurringActivities[i - 1];
-        const activityDuration = calculateDuration(activity.importance);
-        optimalSchedule.push({
-          activityId: activity.id,
-          duration: activityDuration,
-          importance: activity.importance,
-          title: activity.title,
-        });
-        j -= activityDuration;
-      }
-      i--;
-    }
-
-    // Asignar actividades a slots disponibles
-    schedule[dateKey] = assignActivitiesToSlots(
-      optimalSchedule,
-      availableSlots
+    const activitiesForDay = recurringActivities.filter((activity) =>
+      isActivityValidForDate(activity, currentDate)
     );
+    console.log("Activities for day:", JSON.stringify(activitiesForDay));
+
+    // Prioritize activities that haven't been scheduled recently
+    activitiesForDay.sort((a, b) => {
+      if (
+        recentlyScheduledActivities.has(a.id) &&
+        !recentlyScheduledActivities.has(b.id)
+      )
+        return 1;
+      if (
+        !recentlyScheduledActivities.has(a.id) &&
+        recentlyScheduledActivities.has(b.id)
+      )
+        return -1;
+      return b.importance - a.importance;
+    });
+
+    schedule[dateKey] = distributeActivitiesEvenly(
+      activitiesForDay,
+      availableSlots,
+      workStartMoment,
+      workEndMoment
+    );
+
+    // Update recently scheduled activities
+    schedule[dateKey].forEach((activity) => {
+      if (activity.type === "Recurrente") {
+        recentlyScheduledActivities.add(activity.activityId);
+      }
+    });
+
+    // Remove activities from the set if they're more than 2 days old
+    if (recentlyScheduledActivities.size > activitiesForDay.length * 2) {
+      const oldestActivities = [...recentlyScheduledActivities].slice(
+        0,
+        activitiesForDay.length
+      );
+      oldestActivities.forEach((id) => recentlyScheduledActivities.delete(id));
+    }
   }
 
+  console.log("Final schedule:", JSON.stringify(schedule, null, 2));
   return schedule;
+}
+
+function distributeActivitiesEvenly(
+  activities,
+  availableSlots,
+  workStartMoment,
+  workEndMoment
+) {
+  console.log("Starting distributeActivitiesEvenly");
+  console.log("Activities:", JSON.stringify(activities));
+  console.log("Available slots:", JSON.stringify(availableSlots));
+
+  const schedule = [];
+  let totalAvailableTime = availableSlots.reduce(
+    (sum, slot) => sum + moment.duration(slot.end.diff(slot.start)).asMinutes(),
+    0
+  );
+  console.log("Total available time:", totalAvailableTime);
+
+  const totalImportance = activities.reduce(
+    (sum, activity) => sum + (activity.importance + 1),
+    0
+  );
+  console.log("Total importance:", totalImportance);
+
+  const activityTimeAllocation = activities.map((activity) => ({
+    ...activity,
+    allocatedTime: Math.max(
+      30,
+      Math.floor(
+        ((activity.importance + 1) / totalImportance) * totalAvailableTime
+      )
+    ),
+  }));
+  console.log(
+    "Activity time allocation:",
+    JSON.stringify(activityTimeAllocation)
+  );
+
+  let slotIndex = 0;
+  let activityIndex = 0;
+  let lastActivityId = null;
+  let currentBlockDuration = 0;
+  let lastBreakEnd = null;
+
+  while (slotIndex < availableSlots.length) {
+    const slot = availableSlots[slotIndex];
+    console.log(`Processing slot: ${JSON.stringify(slot)}`);
+
+    // No breaks in the first 2.5 hours
+    if (moment.duration(slot.start.diff(workStartMoment)).asHours() < 2.5) {
+      console.log("Within first 2.5 hours, no breaks");
+      if (activityIndex >= activityTimeAllocation.length) {
+        console.log("No more activities to schedule");
+        break;
+      }
+      const activity = activityTimeAllocation[activityIndex];
+      console.log(activity);
+      const slotDuration = moment
+        .duration(slot.end.diff(slot.start))
+        .asMinutes();
+      let allocatedTime = Math.min(activity.allocatedTime, slotDuration);
+
+      console.log(
+        `Scheduling activity ${activity.id} for ${allocatedTime} minutes`
+      );
+      schedule.push({
+        activityId: activity.id,
+        start: moment(slot.start),
+        end: moment(slot.start).add(allocatedTime, "minutes"),
+        title: activity.title || `Activity ${activity.id}`,
+        type: "Recurrente",
+      });
+
+      activity.allocatedTime -= allocatedTime;
+      if (activity.allocatedTime <= 0) {
+        activityIndex++;
+      }
+
+      slot.start = moment(slot.start).add(allocatedTime, "minutes");
+      if (slot.start.isSame(slot.end)) {
+        slotIndex++;
+      }
+      continue;
+    }
+
+    if (
+      shouldInsertBreak(
+        schedule,
+        currentBlockDuration,
+        lastBreakEnd,
+        slot.start
+      )
+    ) {
+      console.log("Inserting break");
+      const breakDuration = 15; // Fixed break duration
+
+      schedule.push({
+        activityId: null,
+        start: moment(slot.start),
+        end: moment(slot.start).add(breakDuration, "minutes"),
+        title: "Descanso",
+        type: "Descanso",
+        breakDuration: breakDuration,
+      });
+      slot.start = moment(slot.start).add(breakDuration, "minutes");
+      currentBlockDuration = 0;
+      lastActivityId = null;
+      lastBreakEnd = moment(slot.start);
+      continue;
+    }
+
+    if (activityIndex >= activityTimeAllocation.length) {
+      console.log("No more activities to schedule");
+      break;
+    }
+    const activity = activityTimeAllocation[activityIndex];
+    const slotDuration = moment.duration(slot.end.diff(slot.start)).asMinutes();
+    let allocatedTime = Math.min(activity.allocatedTime, slotDuration);
+
+    console.log(
+      `Scheduling activity ${activity.id} for ${allocatedTime} minutes`
+    );
+
+    // Ensure minimum activity duration of 30 minutes, unless it's filling a small gap
+    if (allocatedTime < 30 && slotDuration >= 30) {
+      allocatedTime = 30;
+    }
+
+    // Limit block size to 3 hours
+    if (currentBlockDuration + allocatedTime > 180) {
+      allocatedTime = 180 - currentBlockDuration;
+    }
+
+    if (
+      activity.id === lastActivityId &&
+      currentBlockDuration + allocatedTime <= 180
+    ) {
+      // Extend the previous activity block
+      const lastActivity = schedule[schedule.length - 1];
+      lastActivity.end = moment(slot.start).add(allocatedTime, "minutes");
+      currentBlockDuration += allocatedTime;
+    } else {
+      // Start a new activity block
+      schedule.push({
+        activityId: activity.id,
+        start: moment(slot.start),
+        end: moment(slot.start).add(allocatedTime, "minutes"),
+        title: activity.title || `Activity ${activity.id}`,
+        type: "Recurrente",
+      });
+      lastActivityId = activity.id;
+      currentBlockDuration = allocatedTime;
+    }
+
+    activity.allocatedTime -= allocatedTime;
+    if (activity.allocatedTime <= 0) {
+      activityIndex++;
+    }
+
+    slot.start = moment(slot.start).add(allocatedTime, "minutes");
+    if (slot.start.isSame(slot.end)) {
+      slotIndex++;
+    }
+  }
+
+  console.log("Final schedule for the day:", JSON.stringify(schedule));
+  return schedule.sort((a, b) => a.start.diff(b.start));
+}
+
+function shouldInsertBreak(
+  schedule,
+  currentBlockDuration,
+  lastBreakEnd,
+  currentTime
+) {
+  if (schedule.length === 0) return false;
+  const lastActivity = schedule[schedule.length - 1];
+  const timeSinceLastBreak = lastBreakEnd
+    ? moment(currentTime).diff(lastBreakEnd, "minutes")
+    : Infinity;
+  return (
+    (lastActivity.type !== "Descanso" && timeSinceLastBreak >= 120) ||
+    currentBlockDuration >= 180
+  );
+}
+
+function isActivityValidForDate(activity, date) {
+  const activityStart = moment(activity.start_date);
+  const activityEnd = moment(activity.due_date);
+  return moment(date).isBetween(activityStart, activityEnd, null, "[]");
 }
 
 function getAvailableTimeSlots(
@@ -364,48 +561,7 @@ function getAvailableTimeSlots(
     });
   }
 
-  return insertRandomBreaks(availableSlots);
-}
-
-function insertRandomBreaks(slots) {
-  const updatedSlots = [];
-  for (const slot of slots) {
-    let currentTime = moment(slot.start);
-    while (currentTime < slot.end) {
-      const nextBreakTime = moment(currentTime).add(
-        Math.random() < 0.5 ? 1.5 : 3,
-        "hours"
-      );
-      const breakDuration = Math.random() < 0.5 ? 15 : 20;
-
-      if (nextBreakTime.isBefore(slot.end)) {
-        if (moment.duration(nextBreakTime.diff(currentTime)).asMinutes() > 30) {
-          updatedSlots.push({
-            start: moment(currentTime),
-            end: nextBreakTime,
-            isAvailable: true,
-          });
-        }
-        updatedSlots.push({
-          start: nextBreakTime,
-          end: moment(nextBreakTime).add(breakDuration, "minutes"),
-          isBreak: true,
-          breakDuration: breakDuration,
-        });
-        currentTime = moment(nextBreakTime).add(breakDuration, "minutes");
-      } else {
-        if (moment.duration(slot.end.diff(currentTime)).asMinutes() > 30) {
-          updatedSlots.push({
-            start: moment(currentTime),
-            end: moment(slot.end),
-            isAvailable: true,
-          });
-        }
-        break;
-      }
-    }
-  }
-  return updatedSlots;
+  return availableSlots;
 }
 
 function isActivityValidForDate(activity, date) {
@@ -413,61 +569,6 @@ function isActivityValidForDate(activity, date) {
   const activityEnd = moment(activity.due_date);
   return moment(date).isBetween(activityStart, activityEnd, null, "[]");
 }
-
-function calculateDuration(importance) {
-  return 30 + importance * 15; // 30 minutos base + 15 por cada nivel de importancia
-}
-
-function assignActivitiesToSlots(activities, availableSlots) {
-  const schedule = [];
-  let slotIndex = 0;
-
-  for (const activity of activities) {
-    let remainingDuration = activity.duration;
-
-    while (remainingDuration > 0 && slotIndex < availableSlots.length) {
-      const slot = availableSlots[slotIndex];
-
-      if (slot.isBreak) {
-        schedule.push({
-          activityId: null,
-          start: slot.start,
-          end: slot.end,
-          title: "Descanso",
-          type: "Descanso",
-          breakDuration: slot.breakDuration,
-        });
-        slotIndex++;
-        continue;
-      }
-
-      const slotDuration = moment
-        .duration(slot.end.diff(slot.start))
-        .asMinutes();
-      const allocatedTime = Math.min(remainingDuration, slotDuration);
-
-      schedule.push({
-        activityId: activity.activityId,
-        start: moment(slot.start),
-        end: moment(slot.start).add(allocatedTime, "minutes"),
-        title: activity.title,
-        type: "Recurrente",
-      });
-
-      remainingDuration -= allocatedTime;
-      slot.start = moment(slot.start).add(allocatedTime, "minutes");
-
-      if (slot.start.isSame(slot.end)) {
-        slotIndex++;
-      }
-    }
-  }
-
-  return schedule.sort((a, b) => a.start.diff(b.start));
-}
-
-// Ejemplo de uso
-scheduleActivities(95).catch(console.error);
 
 //--------------- ACTIVITIES PAGE ----------------//
 
@@ -506,8 +607,6 @@ app.get("/api/userActivities", verifyToken(["1"]), async (req, res) => {
               end_time
           FROM 
               schedule
-          WHERE 
-              type NOT IN ('Puntual', 'Descanso')
           GROUP BY 
               activity_id
           ORDER BY 
@@ -554,9 +653,10 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
     );
 
     if (limitCheckResult.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Usuario o plan de suscripción no encontrado" });
+      return res.status(404).json({
+        message: "Usuario o plan de suscripción no encontrado",
+        errorCode: "USER_OR_PLAN_NOT_FOUND",
+      });
     }
 
     const { maxActivities, activeActivities } = limitCheckResult[0];
@@ -565,6 +665,7 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
       return res.status(403).json({
         message:
           "No puedes agregar más actividades. Has alcanzado el límite máximo de tu plan.",
+        errorCode: "ACTIVITY_LIMIT_REACHED",
       });
     }
 
@@ -578,10 +679,11 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
       return res.status(400).json({
         message:
           "Debe configurar su horario de trabajo antes de agregar actividades",
+        errorCode: "WORK_HOURS_NOT_SET",
       });
     }
 
-    // Si la actividad es puntual, verificar que esté dentro del horario laboral
+    // Si la actividad es puntual, realizar verificaciones adicionales
     if (newEvent.type === "Puntual") {
       const activityStartTime = new Date(`1970-01-01T${newEvent.start_time}`);
       const activityEndTime = new Date(`1970-01-01T${newEvent.end_time}`);
@@ -593,47 +695,70 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
       if (activityStartTime < workStartTime || activityEndTime > workEndTime) {
         return res.status(400).json({
           message: "La actividad debe estar dentro de su horario laboral",
+          errorCode: "ACTIVITY_OUTSIDE_WORK_HOURS",
         });
       }
 
-      // Verificar si hay conflictos con otras actividades puntuales
+      // Verificar si hay conflictos con otras actividades
       const [conflictingEvents] = await connection.query(
         `SELECT * FROM schedule 
          WHERE user_id = ? 
          AND date = ? 
-         AND type = 'Puntual'
          AND (
            (start_time < ? AND end_time > ?) OR
            (start_time < ? AND end_time > ?) OR
-           (start_time >= ? AND end_time <= ?) OR
-           (? < end_time AND ? > start_time)
+           (start_time >= ? AND end_time <= ?)
          )`,
         [
           userId,
           newEvent.date,
-          newEvent.start_time,
-          newEvent.start_time,
-          newEvent.end_time,
           newEvent.end_time,
           newEvent.start_time,
           newEvent.end_time,
+          newEvent.start_time,
           newEvent.start_time,
           newEvent.end_time,
         ]
       );
 
       if (conflictingEvents.length > 0) {
-        return res.status(409).json({
-          message:
-            "Ya existe un evento que se superpone con el horario seleccionado en la fecha indicada",
-        });
+        // Verificar si hay conflicto con una actividad puntual
+        const punctualConflict = conflictingEvents.some(
+          (event) => event.type === "Puntual"
+        );
+        if (punctualConflict) {
+          return res.status(409).json({
+            message:
+              "Ya existe una actividad puntual que se superpone con el horario seleccionado",
+            errorCode: "PUNCTUAL_ACTIVITY_CONFLICT",
+          });
+        }
+
+        // Si hay conflictos solo con actividades recurrentes o descansos, ajustar sus tiempos
+        await connection.beginTransaction();
+
+        for (const event of conflictingEvents) {
+          if (event.start_time < newEvent.start_time) {
+            await connection.query(
+              "UPDATE schedule SET end_time = ? WHERE id = ?",
+              [newEvent.start_time, event.id]
+            );
+          } else if (event.end_time > newEvent.end_time) {
+            await connection.query(
+              "UPDATE schedule SET start_time = ? WHERE id = ?",
+              [newEvent.end_time, event.id]
+            );
+          } else {
+            // Si la actividad está completamente solapada, eliminarla
+            await connection.query("DELETE FROM schedule WHERE id = ?", [
+              event.id,
+            ]);
+          }
+        }
       }
     }
 
-    // Inicia la transacción
-    await connection.beginTransaction();
-
-    // Insertar la actividad
+    // Insertar la nueva actividad
     const [activityResult] = await connection.query(
       `INSERT INTO activity (user_id, title, description, importance, status, start_date, due_date)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -645,6 +770,7 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
         newEvent.status,
         newEvent.type === "Puntual" ? newEvent.date : newEvent.start_date,
         newEvent.type === "Puntual" ? newEvent.date : newEvent.due_date,
+        newEvent.type,
       ]
     );
 
@@ -665,8 +791,7 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
         ]
       );
     } else {
-      // Ejemplo de uso
-      scheduleActivities(userId).catch(console.error);
+      await scheduleActivities(userId);
     }
 
     // Confirmar transacción
@@ -677,9 +802,11 @@ app.post("/api/addActivity", verifyToken(["1"]), async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error("Error al agregar actividad:", error);
-    res
-      .status(500)
-      .json({ message: "Error al agregar actividad", error: error.message });
+    res.status(500).json({
+      message: "Error al agregar actividad",
+      error: error.message,
+      errorCode: "INTERNAL_SERVER_ERROR",
+    });
   } finally {
     connection.release();
   }
@@ -693,6 +820,33 @@ app.post("/api/updateActivities", verifyToken(["1"]), async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    // Fetch the original activity data
+    const [originalActivity] = await connection.query(
+      `SELECT 
+          s.type, 
+          a.start_date, 
+          a.due_date 
+      FROM 
+          activity a
+      JOIN 
+          schedule s 
+      ON 
+          s.activity_id = a.id
+      WHERE 
+          a.id = ? 
+      AND 
+          a.user_id = ?;
+`,
+      [editingEvent.id, userId]
+    );
+
+    if (originalActivity.length === 0) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+
+    const wasRecurrent = originalActivity[0].type === "Recurrente";
+
+    // Actualizar la actividad
     await connection.query(
       `UPDATE activity 
        SET title = ?, description = ?, importance = ?, status = ?, start_date = ?, due_date = ?
@@ -713,37 +867,73 @@ app.post("/api/updateActivities", verifyToken(["1"]), async (req, res) => {
       ]
     );
 
+    // Obtener todos los registros de la actividad en la agenda
     const [scheduleResults] = await connection.query(
       `SELECT * FROM schedule WHERE activity_id = ?`,
       [editingEvent.id]
     );
 
+    let needRescheduling = false;
+
     if (editingEvent.type === "Puntual") {
+      if (scheduleResults.length > 1) {
+        // Si hay multiples registros se borran todos menos uno
+        await connection.query(
+          `DELETE FROM schedule WHERE activity_id = ? AND id NOT IN (SELECT id FROM (SELECT MIN(id) as id FROM schedule WHERE activity_id = ?) as temp)`,
+          [editingEvent.id, editingEvent.id]
+        );
+        needRescheduling = true;
+      }
+
+      // Data para la actividad
       const scheduleData = [
         editingEvent.date,
         editingEvent.start_time,
         editingEvent.end_time,
         editingEvent.id,
+        userId,
+        "Puntual",
       ];
 
       if (scheduleResults.length > 0) {
         await connection.query(
-          `UPDATE schedule SET date = ?, start_time = ?, end_time = ? WHERE activity_id = ?`,
-          scheduleData
+          `UPDATE schedule SET date = ?, start_time = ?, end_time = ?, user_id = ?, type = ? WHERE activity_id = ?`,
+          [...scheduleData, editingEvent.id]
         );
       } else {
         await connection.query(
-          `INSERT INTO schedule (date, start_time, end_time, activity_id, type) VALUES (?, ?, ?, ?, 'Puntual')`,
+          `INSERT INTO schedule (date, start_time, end_time, activity_id, user_id, type) VALUES (?, ?, ?, ?, ?, ?)`,
           scheduleData
         );
       }
-    } else if (scheduleResults.length > 0) {
-      await connection.query(`DELETE FROM schedule WHERE activity_id = ?`, [
-        editingEvent.id,
-      ]);
+      needRescheduling = true;
+    } else {
+      // Si el type no es "Puntual", se borran todos los registros de schedule de dicha actividad.
+      if (scheduleResults.length > 0) {
+        await connection.query(`DELETE FROM schedule WHERE activity_id = ?`, [
+          editingEvent.id,
+        ]);
+        needRescheduling = true;
+      }
+
+      // Revisar si la actividad era y se mantiene como "Recurrente". Y si las fechas cambiaron.
+      if (
+        wasRecurrent &&
+        editingEvent.type === "Recurrente" &&
+        (originalActivity[0].start_date !== editingEvent.start_date ||
+          originalActivity[0].due_date !== editingEvent.due_date)
+      ) {
+        needRescheduling = true;
+      }
     }
 
     await connection.commit();
+
+    // En caso de que se hayan cumplido condiciones deberá acomodarse la agenda nuevamente.
+    if (needRescheduling) {
+      scheduleActivities(userId).catch(console.error);
+    }
+
     res.status(200).json({ message: "Actividad actualizada con éxito" });
   } catch (error) {
     await connection.rollback();
@@ -774,6 +964,7 @@ app.post("/api/deleteActivity", verifyToken(["1"]), async (req, res) => {
       `UPDATE activity SET status = '3' WHERE id = ? AND user_id = ?`,
       [activityId, userId]
     );
+    scheduleActivities(userId).catch(console.error);
 
     await connection.commit();
     res.status(200).json({ message: "Actividad eliminada exitosamente" });
@@ -869,17 +1060,18 @@ app.get("/api/schedule", verifyToken(["1"]), async (req, res) => {
         s.start_time,
         s.end_time,
         s.break_duration,
-        a.id AS activity_id,
-        a.title,
-        a.description
+        s.type,
+        COALESCE(a.id, 0) AS activity_id,
+        COALESCE(a.title, 'Descanso') AS title,
+        COALESCE(a.description, 'Tiempo de descanso') AS description
       FROM 
         schedule s
-      RIGHT JOIN 
+      LEFT JOIN 
         activity a ON s.activity_id = a.id
       WHERE 
         s.user_id = ? 
-        AND a.status NOT IN ("2", "3")
         AND s.date = ?
+        AND (a.status NOT IN ("2", "3") OR a.status IS NULL)
       ORDER BY 
         s.date, s.start_time`,
       [userId, date]
@@ -899,14 +1091,16 @@ app.get("/api/activitiesData", verifyToken(["1"]), async (req, res) => {
     const [results] = await pool.query(
       `
       SELECT 
-        sp.max_activities AS maxActivities,
-        COUNT(a.id) AS activeActivities
+          sp.max_activities AS maxActivities,
+          COUNT(a.id) AS activeActivities
       FROM users u
-      JOIN subscription_plan sp ON u.suscription_plan = sp.id
+      JOIN subscription_plan sp 
+          ON u.suscription_plan = sp.id
       LEFT JOIN activity a 
-        ON u.id = a.user_id 
-      WHERE u.id = ? AND a.status NOT IN ('2', '3')
-      GROUP BY sp.max_activities
+          ON u.id = a.user_id AND a.status NOT IN ('2', '3')
+      WHERE u.id = ?
+      GROUP BY sp.max_activities;
+
       `,
       [userId]
     );

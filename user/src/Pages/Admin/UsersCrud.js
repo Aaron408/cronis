@@ -246,7 +246,7 @@ const Users = () => {
     if (
       newName === "" ||
       newMail === "" ||
-      (newRol.value !== "1" && newPlan === "")
+      (newRol.value !== "0" && newPlan === "")
     ) {
       return toast.error("Llena correctamente el formulario");
     }
@@ -353,8 +353,8 @@ const Users = () => {
                   className="flex-1"
                   styles={customStyles}
                   options={[
-                    { id: "1", name: "Administrador" },
-                    { id: "2", name: "Usuario" },
+                    { id: "0", name: "Administrador" },
+                    { id: "1", name: "Usuario" },
                   ].map((rol) => ({
                     value: rol.id,
                     label: rol.name,

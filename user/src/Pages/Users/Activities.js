@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import Header from "../../Components/User/Header";
 import SideBar from "../../Components/User/SideBar";
 import ActivityModal from "../../Components/User/ActivityModal";
+import LoadingScreen from "../../Components/User/LoadingScreen";
 
 export default function Activities() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -16,6 +17,7 @@ export default function Activities() {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const userActivities = async () => {
     try {
@@ -45,36 +47,54 @@ export default function Activities() {
   };
 
   const confirmDeleteEvent = async () => {
+    setIsLoading(true);
     try {
+      setIsDeleteModalOpen(false);
       await ActivitiesApi.post("/api/deleteActivity", {
         activityId: eventToDelete,
       });
       toast.success("Actividad eliminada exitosamente!");
+      setIsLoading(false);
       userActivities();
-      setIsDeleteModalOpen(false);
       setEventToDelete(null);
     } catch (error) {
       console.error("Error al eliminar la actividad", error);
       toast.error("Error al eliminar la actividad");
+      setIsLoading(true);
     }
   };
 
   const handleAddEvent = () => {
     setEditingEvent(null);
-    setIsModalOpen(true);
+    ActivitiesApi.get("/api/activitiesData")
+      .then((response) => {
+        if (response.data.message === "Puedes abrir el modal") {
+          setIsModalOpen(true);
+        }
+      })
+      .catch((error) => {
+        if (error.response.status === 403) {
+          toast.warning(error.response.data.message);
+        } else {
+          toast.error("Error al intentar añadir una actividad.");
+        }
+      });
   };
 
   const handleSaveEvent = async (eventData) => {
+    setIsLoading(true);
     try {
+      setIsModalOpen(false);
       if (editingEvent) {
         await ActivitiesApi.post(`/api/updateActivities`, eventData);
         toast.success("Actividad actualizada exitosamente!");
+        setIsLoading(false);
       } else {
         await ActivitiesApi.post("/api/addActivity", eventData);
         toast.success("Actividad agregada exitosamente!");
+        setIsLoading(false);
       }
-      userActivities();
-      setIsModalOpen(false);
+      await userActivities();
       setEditingEvent(null);
     } catch (error) {
       if (error.response) {
@@ -92,15 +112,18 @@ export default function Activities() {
             console.error("Error al guardar la actividad", error);
             toast.error("Error al guardar la actividad");
         }
+        setIsLoading(false);
       } else {
         console.error("Error inesperado", error);
         toast.error("Error inesperado al guardar la actividad");
+        setIsLoading(false);
       }
     }
   };
 
   return (
     <div className="flex h-screen flex-col">
+      {isLoading && <LoadingScreen />}
       <Header onToggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
         <SideBar isOpen={isSidebarOpen} onClose={closeSidebar} />
@@ -135,12 +158,14 @@ export default function Activities() {
                         : "Completado"}
                     </span>
                     <div className="mt-2">
-                      <button
-                        className="mr-2 px-3 py-1.5 bg-black hover:bg-gray-800 text-white rounded-md hover:rounded-md"
-                        onClick={() => handleEditEvent(event)}
-                      >
-                        Editar
-                      </button>
+                      {event.type === "Recurrente" && (
+                        <button
+                          className="mr-2 px-3 py-1.5 bg-black hover:bg-gray-800 text-white rounded-md hover:rounded-md"
+                          onClick={() => handleEditEvent(event)}
+                        >
+                          Editar
+                        </button>
+                      )}
                       <button
                         className="text-red-500 px-3 py-1.5 hover:bg-gray-100 hover:text-black hover:rounded-md"
                         onClick={() => handleDeleteEvent(event.id)}

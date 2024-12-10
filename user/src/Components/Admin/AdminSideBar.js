@@ -2,7 +2,6 @@ import React, { useContext, useEffect, useRef } from "react";
 import { FaUsers } from "react-icons/fa";
 import { BsBarChartFill } from "react-icons/bs";
 import { FiFileText } from "react-icons/fi";
-import { IoMdSettings } from "react-icons/io";
 import { IoLogOut } from "react-icons/io5";
 import { AuthContext } from "../AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -64,7 +63,6 @@ export default function AdminSideBar({ isSidebarOpen, toggleSidebar }) {
             { name: "Dashboard", icon: BsBarChartFill, route: "dashboard" },
             { name: "Usuarios", icon: FaUsers, route: "users" },
             { name: "Reports", icon: FiFileText, route: "reports" },
-            { name: "Settings", icon: IoMdSettings, route: "settings" },
           ].map((item) => (
             <button
               key={item.name}

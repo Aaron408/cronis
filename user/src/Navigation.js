@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 //User Pages
 import Login from "./Pages/Login";
 import SingIn from "./Pages/SingIn";
+import PasswordRecovery from "./Pages/PasswordRecovery";
 import Home from "./Pages/Users/Home";
 import Activities from "./Pages/Users/Activities";
 import Profile from "./Pages/Users/Profile";
@@ -34,6 +35,7 @@ const Navigation = () => {
       <Route path="/" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <SingIn />} />
       <Route path="/login" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <Login />} />
+      <Route path="/forgot-password" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <PasswordRecovery />} />
       <Route path="/verification" element={user ? <Navigate to={roleRedirects[user.type] || "/"} /> : <VerificationCode />} />
       <Route element={<PrivateRoute allowedRoles={["1"]} roleRedirects={roleRedirects} />}>
         <Route path="/home" element={<Home />} />

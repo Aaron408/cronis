@@ -462,7 +462,7 @@ app.post("/api/addUser", verifyToken(["0"]), async (req, res) => {
     subscription_end_date,
   } = req.body;
 
-  if (!name || !email || (!suscription_plan && type !== "1")) {
+  if (!name || !email || (!suscription_plan && type !== "0")) {
     return res
       .status(400)
       .json({ message: "Llena correctamente el formulario." });

@@ -59,10 +59,6 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    console.log(usuarioCopy);
-  }, [usuarioCopy]);
-
-  useEffect(() => {
     if (
       usuario !== usuarioCopy ||
       currentPassword !== "" ||
@@ -84,10 +80,18 @@ export default function Profile() {
   };
 
   const handleNotificationChange = (name) => {
-    setUsuarioCopy((prevState) => ({
-      ...prevState,
-      [name]: prevState[name] === "1" ? "0" : "1",
-    }));
+    setUsuarioCopy((prevState) => {
+      const newState = {
+        ...prevState,
+        [name]: prevState[name] === "1" ? "0" : "1",
+      };
+
+      if (name === "notifications" && newState.notifications === "0") {
+        newState.emailnotifications = "0";
+      }
+
+      return newState;
+    });
   };
 
   const handleSubmit = (e) => {
@@ -189,7 +193,7 @@ export default function Profile() {
               </button> */}
             </div>
           </div>
-          <div className="bg-white border rounded-lg p-6">
+          {/* <div className="bg-white border rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">Estadísticas</h2>
             <div className="space-y-4">
               <div>
@@ -217,7 +221,7 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
         <div>
           <div className="overflow-x-auto mb-5">
@@ -506,16 +510,23 @@ export default function Profile() {
                             onClick={() =>
                               handleNotificationChange("emailnotifications")
                             }
+                            disabled={usuarioCopy.notifications === "0"}
                             className={`${
-                              usuarioCopy.emailnotifications === "1"
+                              usuarioCopy.emailnotifications === "1" &&
+                              usuarioCopy.notifications === "1"
                                 ? "bg-black"
                                 : "bg-gray-200"
-                            } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none`}
+                            } relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${
+                              usuarioCopy.notifications === "0"
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
                           >
                             <span
                               aria-hidden="true"
                               className={`${
-                                usuarioCopy.emailnotifications === "1"
+                                usuarioCopy.emailnotifications === "1" &&
+                                usuarioCopy.notifications === "1"
                                   ? "translate-x-5"
                                   : "translate-x-0"
                               } pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}
@@ -523,7 +534,11 @@ export default function Profile() {
                           </button>
                           <label
                             htmlFor="email-notifications"
-                            className="ml-2 block text-sm text-gray-500 font-semibold"
+                            className={`ml-2 block text-sm text-gray-500 font-semibold ${
+                              usuarioCopy.notifications === "0"
+                                ? "opacity-50"
+                                : ""
+                            }`}
                           >
                             Notificaciones por correo
                           </label>

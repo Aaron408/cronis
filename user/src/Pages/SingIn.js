@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { MdMailOutline } from "react-icons/md";
 import { Link, useNavigate } from "react-router-dom";
@@ -15,15 +15,32 @@ export default function SignUp() {
   const [firstName, setFirstName] = useState("");
   const [lastNameP, setLastNameP] = useState("");
   const [lastNameM, setLastNameM] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState({
+    minLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+  });
+
+  useEffect(() => {
+    validatePassword(password);
+  }, [password]);
+
+  const validatePassword = (password) => {
+    setPasswordStrength({
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /\d/.test(password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    });
+  };
+
+  const isPasswordValid = Object.values(passwordStrength).every(Boolean);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validar contraseñas coincidentes
-    if (password !== passwordConfirmation) {
-      toast.error("Las contraseñas no coinciden");
-      return;
-    }
 
     // Validar campos requeridos
     if (
@@ -37,11 +54,24 @@ export default function SignUp() {
       return;
     }
 
+    if (!isPasswordValid) {
+      toast.error("La contraseña no cumple con los requisitos de seguridad.");
+      return;
+    }
+
+    // Validar contraseñas coincidentes
+    if (password !== passwordConfirmation) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+
     // Validar formato de correo (solo Gmail, Hotmail e institucionales de la UTEQ)
     const emailRegex =
       /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com|uteq.edu.mx)$/;
     if (!emailRegex.test(email)) {
-      toast.error("El correo debe ser una cuenta válida de Gmail, Hotmail o uteq.edu.mx.");
+      toast.error(
+        "El correo debe ser una cuenta válida de Gmail, Hotmail o uteq.edu.mx."
+      );
       return;
     }
 
@@ -215,6 +245,53 @@ export default function SignUp() {
                     )}
                   </button>
                 </div>
+              </div>
+              <div className="mt-2 text-sm">
+                <p
+                  className={
+                    passwordStrength.minLength
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  ✓ Mínimo 8 caracteres
+                </p>
+                <p
+                  className={
+                    passwordStrength.hasUppercase
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  ✓ Al menos una mayúscula
+                </p>
+                <p
+                  className={
+                    passwordStrength.hasLowercase
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  ✓ Al menos una minúscula
+                </p>
+                <p
+                  className={
+                    passwordStrength.hasNumber
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  ✓ Al menos un número
+                </p>
+                <p
+                  className={
+                    passwordStrength.hasSpecialChar
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  ✓ Al menos un carácter especial
+                </p>
               </div>
             </div>
 

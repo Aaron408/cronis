@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("cronisUsuario", JSON.stringify(userData));
       toast.success("¡Inicio de sesión exitoso!");
 
-      // Redirige según el tipo de usuario
+      //Redirige según el tipo de usuario
       if (type === "1") {
         navigate("/home");
       } else if (type === "0") {
@@ -85,16 +85,16 @@ export const AuthProvider = ({ children }) => {
         idToken: credentialResponse,
       });
 
-      const { tipo } = response.data; // Extraer datos del usuario
+      const { tipo } = response.data; //Extraer datos del usuario
 
       if (response.status === 200 || response.status === 201) {
-        // Almacena los datos de usuario directamente desde response.data
+        //Almacena los datos de usuario directamente desde response.data
         setUser(response.data);
-        localStorage.setItem("cronisUsuario", JSON.stringify(response.data)); // Guardar en localStorage
+        localStorage.setItem("cronisUsuario", JSON.stringify(response.data));
 
         toast.success("¡Bienvenido!");
 
-        // Navegar dependiendo del tipo de usuario
+        //Navegar dependiendo del tipo de usuario
         if (tipo === "1") {
           navigate("/home");
         } else if (tipo === "0") {

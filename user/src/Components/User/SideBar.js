@@ -68,7 +68,7 @@ function SideBar({ isOpen, onClose }) {
       <aside
         className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r transition-transform duration-300 ease-in-out transform ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:relative md:translate-x-0`}
+        } sm:relative sm:translate-x-0`}
       >
         <div className="h-full flex flex-col justify-between">
           <div className="space-y-2 py-2 px-4">

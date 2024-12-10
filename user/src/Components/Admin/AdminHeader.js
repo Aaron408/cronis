@@ -3,11 +3,18 @@ import React, { useEffect, useState, useRef, useContext } from "react";
 import { AuthContext } from "../AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { FaSearch, FaChevronDown } from "react-icons/fa";
-import { IoNotificationsOutline } from "react-icons/io5";
+import { FaChevronDown } from "react-icons/fa";
+import { IoSearch } from "react-icons/io5";
 import { HiMenu } from "react-icons/hi";
 import { UsersApi } from "../../api";
 import { toast } from "react-toastify";
+
+const sections = [
+  { id: 1, title: "Dashboard", path: "/dashboard" },
+  { id: 2, title: "Usuarios", path: "/users" },
+  { id: 3, title: "Reportes", path: "/reports" },
+  { id: 4, title: "Perfil", path: "/profile" },
+];
 
 export default function AdminHeader({ toggleSidebar }) {
   const navigate = useNavigate();
@@ -20,7 +27,10 @@ export default function AdminHeader({ toggleSidebar }) {
     biography: "",
     profile_picture_url: "",
   });
+  const searchRef = useRef(null);
   const userMenuRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
 
   const userData = async () => {
     try {
@@ -36,6 +46,17 @@ export default function AdminHeader({ toggleSidebar }) {
   useEffect(() => {
     userData();
   }, []);
+
+  useEffect(() => {
+    if (searchTerm) {
+      const results = sections.filter((section) =>
+        section.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setSearchResults(results);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -60,6 +81,11 @@ export default function AdminHeader({ toggleSidebar }) {
     logout();
   };
 
+  const handleSearchResultClick = (result) => {
+    setSearchTerm("");
+    navigate(result.path);
+  };
+
   return (
     <header className="bg-white shadow-sm">
       <div className="flex items-center justify-between px-4 py-4">
@@ -81,19 +107,31 @@ export default function AdminHeader({ toggleSidebar }) {
           </h1>
         </div>
         <div className="flex items-center">
-          <form className="hidden md:flex mr-3">
+          <div className="hidden md:flex relative" ref={searchRef}>
             <div className="relative">
-              <FaSearch className="absolute left-2.5 top-2.5 h-5 w-5 text-gray-400" />
+              <IoSearch className="absolute left-2.5 top-2.5 h-5 w-5 text-gray-500" />
               <input
                 className="pl-9 pr-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                placeholder="Buscar tareas..."
+                placeholder="Buscar secciones..."
                 type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-          </form>
-          <button className="flex text-gray-600 hover:text-gray-900">
-            <IoNotificationsOutline className="h-6 w-6" />
-          </button>
+            {searchResults.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                {searchResults.map((result) => (
+                  <div
+                    key={result.id}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => handleSearchResultClick(result)}
+                  >
+                    <div className="font-medium">{result.title}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div>
             <button
               className="flex items-center ml-4 text-sm font-medium text-gray-700 hover:text-gray-900"
@@ -123,13 +161,6 @@ export default function AdminHeader({ toggleSidebar }) {
                     onClick={handleProfile}
                   >
                     Perfil
-                  </div>
-                  <div
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    role="menuitem"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    Configuración
                   </div>
                   <div
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"

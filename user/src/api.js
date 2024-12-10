@@ -6,46 +6,61 @@ const getToken = () => {
 };
 
 export const AuthApi = axios.create({
-  baseURL: "http://localhost:5000",
+  baseURL:
+    "http://localhost:5001",
   headers: {
     Authorization: `Bearer ${getToken()}`,
-    'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
 export const UsersApi = axios.create({
-  baseURL: "http://localhost:5001",
+  baseURL:
+    "http://localhost:5002",
   headers: {
     Authorization: `Bearer ${getToken()}`,
-    'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
 export const ActivitiesApi = axios.create({
-  baseURL: "http://localhost:5002",
+  baseURL:
+    "http://localhost:5003",
   headers: {
     Authorization: `Bearer ${getToken()}`,
-    'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
 export const ReportsApi = axios.create({
-  baseURL: "http://localhost:5003",
+  baseURL:
+    "http://localhost:5004",
   headers: {
     Authorization: `Bearer ${getToken()}`,
-    'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
 
 export const SuscriptionApi = axios.create({
-  baseURL: "http://localhost:5004",
+  baseURL:
+    "http://localhost:5005",
   headers: {
     Authorization: `Bearer ${getToken()}`,
-    'Access-Control-Allow-Origin': '*',
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  },
+});
+
+export const NotificationsApi = axios.create({
+  baseURL:
+    "http://localhost:5006",
+  headers: {
+    Authorization: `Bearer ${getToken()}`,
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   },
 });
@@ -88,3 +103,4 @@ setupInterceptors(UsersApi);
 setupInterceptors(ActivitiesApi);
 setupInterceptors(ReportsApi);
 setupInterceptors(SuscriptionApi);
+setupInterceptors(NotificationsApi);

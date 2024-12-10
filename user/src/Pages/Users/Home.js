@@ -1,12 +1,12 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from "react";
-import { FiPlus } from "react-icons/fi";
-import { MdOutlineKeyboardArrowLeft } from "react-icons/md";
+import { FiPlus, FiCoffee } from "react-icons/fi";
 import { ActivitiesApi } from "../../api";
 import { toast } from "react-toastify";
 import ActivityModal from "../../Components/User/ActivityModal";
 import Header from "../../Components/User/Header";
 import SideBar from "../../Components/User/SideBar";
+import LoadingScreen from "../../Components/User/LoadingScreen";
 
 export default function Home() {
   const [currentDate] = useState(new Date());
@@ -15,6 +15,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchSchedule = async (date) => {
     try {
@@ -60,30 +61,69 @@ export default function Home() {
   };
 
   const handleSaveEvent = async (eventData) => {
+    setIsLoading(true);
     try {
+      setIsModalOpen(false);
       await ActivitiesApi.post("/api/addActivity", eventData);
       toast.success("Actividad agregada exitosamente!");
       fetchSchedule(currentDate);
-      setIsModalOpen(false);
+      setIsLoading(false);
     } catch (error) {
       if (error.response) {
-        switch (error.response.status) {
+        const { status, data } = error.response;
+        switch (status) {
           case 400:
-            toast.error(error.response.data.message);
+            switch (data.errorCode) {
+              case "WORK_HOURS_NOT_SET":
+                toast.error(
+                  "Debe configurar su horario de trabajo antes de agregar actividades."
+                );
+                break;
+              case "ACTIVITY_OUTSIDE_WORK_HOURS":
+                toast.error(
+                  "La actividad debe estar dentro de su horario laboral."
+                );
+                break;
+              default:
+                toast.error(data.message || "Error al agregar la actividad.");
+            }
             break;
           case 403:
-            toast.error(error.response.data.message);
+            if (data.errorCode === "ACTIVITY_LIMIT_REACHED") {
+              toast.error(
+                "Ha alcanzado el límite máximo de actividades de su plan."
+              );
+            } else {
+              toast.error(
+                data.message || "No tiene permiso para realizar esta acción."
+              );
+            }
+            break;
+          case 404:
+            if (data.errorCode === "USER_OR_PLAN_NOT_FOUND") {
+              toast.error("Usuario o plan de suscripción no encontrado.");
+            } else {
+              toast.error(data.message || "Recurso no encontrado.");
+            }
             break;
           case 409:
-            toast.error(error.response.data.message);
+            if (data.errorCode === "PUNCTUAL_ACTIVITY_CONFLICT") {
+              toast.error(
+                "Ya existe una actividad puntual que se superpone con el horario seleccionado."
+              );
+            } else {
+              toast.error(data.message || "Conflicto al agregar la actividad.");
+            }
             break;
           default:
             console.error("Error al guardar la actividad", error);
             toast.error("Error al guardar la actividad");
         }
+        setIsLoading(false);
       } else {
         console.error("Error inesperado", error);
         toast.error("Error inesperado al guardar la actividad");
+        setIsLoading(false);
       }
     }
   };
@@ -174,8 +214,37 @@ export default function Home() {
     setIsSidebarOpen(false);
   };
 
+  const renderEventCard = (event) => {
+    if (event.type === "Descanso") {
+      return (
+        <div
+          key={event.schedule_id}
+          className="rounded-lg border p-4 bg-gray-100"
+        >
+          <div className="flex items-center mb-2">
+            <FiCoffee className="mr-2 text-gray-600" />
+            <h3 className="text-lg font-semibold">
+              {event.start_time?.slice(0, 5)} - Descanso
+            </h3>
+          </div>
+          <p className="text-sm text-gray-500">Tiempo de descanso</p>
+        </div>
+      );
+    } else {
+      return (
+        <div key={event.schedule_id} className="rounded-lg border p-4">
+          <h3 className="mb-2 text-lg font-semibold">
+            {event.start_time?.slice(0, 5)} - {event.title}
+          </h3>
+          <p className="text-sm text-gray-500">{event.description}</p>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
+      {isLoading && <LoadingScreen />}
       <Header onToggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
         <SideBar isOpen={isSidebarOpen} onClose={closeSidebar} />
@@ -183,20 +252,6 @@ export default function Home() {
           <div className="container mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-3xl font-bold">Agenda del día</h2>
-              <div className="flex items-center space-x-2">
-                <button
-                  className="p-2 rounded-md border border-gray-300 hover:bg-gray-100"
-                  onClick={() => changeMonth(-1)}
-                >
-                  <MdOutlineKeyboardArrowLeft className="h-4 w-4" />
-                </button>
-                <button
-                  className="p-2 rounded-md border border-gray-300 hover:bg-gray-100"
-                  onClick={() => changeMonth(1)}
-                >
-                  <MdOutlineKeyboardArrowLeft className="h-4 w-4 rotate-180" />
-                </button>
-              </div>
             </div>
             <div className="flex flex-col md:grid md:grid-cols-2 gap-6">
               <div className="rounded-md border p-4 order-first md:order-last h-fit">
@@ -254,14 +309,9 @@ export default function Home() {
                 </div>
               </div>
               <div className="space-y-4 order-last md:order-first">
-                {events.map((event, index) => (
-                  <div key={index} className="rounded-lg border p-4">
-                    <h3 className="mb-2 text-lg font-semibold">
-                      {event.start_time?.slice(0, 5)} - {event.title}
-                    </h3>
-                    <p className="text-sm text-gray-500">{event.description}</p>
-                  </div>
-                ))}
+                <div className="space-y-4 order-last md:order-first">
+                  {events.map((event) => renderEventCard(event))}
+                </div>
               </div>
             </div>
           </div>
